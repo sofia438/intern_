@@ -1,0 +1,361 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  MEMBER
+}
+
+model Company {
+  id                String             @id @default(cuid())
+  name              String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  users             User[]
+  websiteVisitors   WebsiteVisitor[]
+  searchJobs        SearchJob[]
+  emailCampaigns    EmailCampaign[]
+  emailSuppressions EmailSuppression[]
+  chatbot           Chatbot?
+  conversations     Conversation[]
+  leads             Lead[]
+  subscription      Subscription?
+  paymentMethod     PaymentMethod?
+  billingProfile    BillingProfile?
+  invoices          Invoice[]
+}
+
+// Module 8 — Billing & Subscription. Test-mode only: PaymentMethod stores no
+// raw card data, just what a real provider would return (brand/last4/expiry).
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+}
+
+model Subscription {
+  id              String             @id @default(cuid())
+  companyId       String             @unique
+  company         Company            @relation(fields: [companyId], references: [id])
+  plan            String
+  status          SubscriptionStatus @default(ACTIVE)
+  startedAt       DateTime           @default(now())
+  nextBillingDate DateTime
+  canceledAt      DateTime?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+}
+
+model PaymentMethod {
+  id          String   @id @default(cuid())
+  companyId   String   @unique
+  company     Company  @relation(fields: [companyId], references: [id])
+  brand       String
+  last4       String
+  expiryMonth Int
+  expiryYear  Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BillingProfile {
+  id           String   @id @default(cuid())
+  companyId    String   @unique
+  company      Company  @relation(fields: [companyId], references: [id])
+  fullName     String
+  country      String
+  address      String
+  city         String
+  postalCode   String
+  taxId        String?
+  billingEmail String
+  updatedAt    DateTime @updatedAt
+}
+
+model Invoice {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  plan        String
+  amount      Float
+  status      String
+  billingDate DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([companyId, billingDate])
+}
+
+model User {
+  id                  String               @id @default(cuid())
+  companyId           String
+  company             Company              @relation(fields: [companyId], references: [id])
+  name                String
+  email               String               @unique
+  passwordHash        String?
+  googleId            String?              @unique
+  role                Role                 @default(MEMBER)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  passwordResetTokens PasswordResetToken[]
+
+  lastLoginAt        DateTime?
+  locationCountry    String?
+  locationCity       String?
+  organization       String?
+  latitude           Float?
+  longitude          Float?
+  locationPermission Boolean?
+  locationCapturedAt DateTime?
+
+  searchJobs     SearchJob[]
+  emailCampaigns EmailCampaign[]
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model WebsiteVisitor {
+  id                 String   @id @default(cuid())
+  companyId          String
+  company            Company  @relation(fields: [companyId], references: [id])
+  visitorCookie      String
+  ipAddress          String?
+  country            String?
+  city               String?
+  organization       String?
+  browser            String?
+  operatingSystem    String?
+  deviceType         String?
+  latitude           Float?
+  longitude          Float?
+  locationPermission Boolean?
+  firstVisit         DateTime @default(now())
+  lastVisit          DateTime @updatedAt
+  visitCount         Int      @default(1)
+
+  @@unique([companyId, visitorCookie])
+  @@index([companyId, lastVisit])
+}
+
+enum SearchJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum SearchType {
+  WEBSITE
+  MAPS
+}
+
+model SearchJob {
+  id                String          @id @default(cuid())
+  companyId         String
+  company           Company         @relation(fields: [companyId], references: [id])
+  userId            String
+  user              User            @relation(fields: [userId], references: [id])
+  searchType        SearchType      @default(WEBSITE)
+  productName       String
+  oemNumber         String?
+  hsCode            String?
+  imageDescription  String?
+  countries         String[]
+  searchEngines     String[]        @default(["google"])
+  competitorBrands  String[]        @default([])
+  relatedIndustries String[]        @default([])
+  cityByCountry     Json?
+  industry          String?
+  status            SearchJobStatus @default(PENDING)
+  resultsCount      Int             @default(0)
+  errorMessage      String?
+  createdAt         DateTime        @default(now())
+  completedAt       DateTime?
+  results           SearchResult[]
+  emailCampaigns    EmailCampaign[]
+
+  contactFinderStatus       SearchJobStatus?
+  contactFinderResultsCount Int?
+  contactFinderCompletedAt  DateTime?
+}
+
+model SearchResult {
+  id              String    @id @default(cuid())
+  searchJobId     String
+  searchJob       SearchJob @relation(fields: [searchJobId], references: [id])
+  companyName     String?
+  website         String?
+  country         String?
+  email           String?
+  phone           String?
+  address         String?
+  confidenceScore Float?
+  openingHours    String?
+  rating          Float?
+  reviewsCount    Int?
+  category        String?
+  createdAt       DateTime  @default(now())
+
+  contactName       String?
+  contactTitle      String?
+  contactEmail      String?
+  contactConfidence Float?
+  contactSourcePage String?
+
+  emailRecipients EmailRecipient[]
+
+  @@unique([searchJobId, website])
+}
+
+enum CampaignStatus {
+  DRAFT
+  SENDING
+  COMPLETED
+  FAILED
+}
+
+enum RecipientStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+  UNSUBSCRIBED
+}
+
+model EmailCampaign {
+  id                String           @id @default(cuid())
+  companyId         String
+  company           Company          @relation(fields: [companyId], references: [id])
+  userId            String
+  user              User             @relation(fields: [userId], references: [id])
+  searchJobId       String
+  searchJob         SearchJob        @relation(fields: [searchJobId], references: [id])
+  fromEmail         String
+  fromName          String
+  subject           String
+  bodyTemplate      String
+  messageVariants   String[]         @default([])
+  attachmentName    String?
+  attachmentType    String?
+  attachmentData    Bytes?
+  sendRatePerMinute Int              @default(20)
+  status            CampaignStatus   @default(DRAFT)
+  errorMessage      String?
+  createdAt         DateTime         @default(now())
+  startedAt         DateTime?
+  completedAt       DateTime?
+  recipients        EmailRecipient[]
+}
+
+model EmailRecipient {
+  id               String          @id @default(cuid())
+  campaignId       String
+  campaign         EmailCampaign   @relation(fields: [campaignId], references: [id])
+  searchResultId   String?
+  searchResult     SearchResult?   @relation(fields: [searchResultId], references: [id])
+  companyName      String?
+  contactName      String?
+  email            String
+  status           RecipientStatus @default(PENDING)
+  unsubscribeToken String          @unique @default(cuid())
+  sentAt           DateTime?
+  errorMessage     String?
+  createdAt        DateTime        @default(now())
+
+  @@index([campaignId])
+}
+
+model EmailSuppression {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  email     String
+  createdAt DateTime @default(now())
+
+  @@unique([companyId, email])
+}
+
+// Phase 4 — Company Knowledge Base. Phase 9 added language settings.
+// Phase 12 added identity/status settings (enabled, name, greeting, theme, quick actions).
+model Chatbot {
+  id                 String   @id @default(cuid())
+  companyId          String   @unique
+  company            Company  @relation(fields: [companyId], references: [id])
+  knowledge          String?
+  languageMode       String   @default("automatic")
+  supportedLanguages String[] @default([])
+  enabled            Boolean  @default(false)
+  assistantName      String   @default("AI Assistant")
+  greeting           String   @default("Hello! How can I help you today?")
+  themeColor         String   @default("#4f46e5")
+  quickActions       String[] @default(["What products do you offer?", "Do you export to Germany?", "Can I request a quotation?", "How can I contact sales?"])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+// Phase 5 — Conversation Memory. Ties each visitor's messages together so the
+// AI receives real prior context instead of trusting client-supplied history.
+model Conversation {
+  id           String    @id @default(cuid())
+  companyId    String
+  company      Company   @relation(fields: [companyId], references: [id])
+  visitorId    String
+  startedAt    DateTime  @default(now())
+  lastActiveAt DateTime  @default(now())
+  messages     Message[]
+  lead         Lead?
+
+  @@index([companyId, visitorId, lastActiveAt])
+}
+
+// Phase 8 — Lead Collection. One lead per conversation, created once the visitor
+// submits the inline contact form triggered by a qualified-lead signal (Phase 7).
+model Lead {
+  id              String       @id @default(cuid())
+  companyId       String
+  company         Company      @relation(fields: [companyId], references: [id])
+  conversationId  String       @unique
+  conversation    Conversation @relation(fields: [conversationId], references: [id])
+  name            String
+  email           String
+  phone           String
+  companyName     String?
+  productInterest String?
+  quantity        String?
+  country         String?
+  createdAt       DateTime     @default(now())
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  role           String
+  content        String
+  createdAt      DateTime     @default(now())
+
+  // Phase 7 — Visitor Intent. Only ever set on role="visitor" messages.
+  intent        String?
+  qualifiedLead Boolean @default(false)
+  // Phase 10 — set when the AI couldn't answer and needs to hand off to a human.
+  needsFallback Boolean @default(false)
+
+  @@index([conversationId, createdAt])
+}
