@@ -45,3 +45,5 @@ next-env.d.ts
 
 # Claude Code local project state — not meant to be shared
 .claude/
+AGENTS.md
+CLAUDE.md
