@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ skipped: true });
     }
 
-    // Don't proactively greet a visitor who already has a conversation on record.
+    
     const existing = await prisma.conversation.findFirst({ where: { companyId, visitorId } });
     if (existing) {
       return NextResponse.json({ skipped: true });

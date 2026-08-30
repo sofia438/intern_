@@ -9,9 +9,7 @@ import { CheckoutFormSchema } from "@/lib/definitions";
 import { PLANS, isPlanId } from "@/lib/billing/plans";
 import { mockChargeCard, PAYMENT_DECLINE_MESSAGES } from "@/lib/billing/paymentProvider";
 
-// Only billing-address fields are ever echoed back on failure — never card number/CVC,
-// so a declined or invalid card doesn't force the visitor to retype their whole address,
-// while still requiring them to re-enter payment details.
+
 export type CheckoutFormState =
   | {
       errors?: Record<string, string[]>;

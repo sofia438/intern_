@@ -5,12 +5,15 @@ import LeadFinderResultsPoll from "@/components/dashboard/LeadFinderResultsPoll"
 import LeadFinderResultsTable from "@/components/dashboard/LeadFinderResultsTable";
 import MapsResultsTable from "@/components/dashboard/MapsResultsTable";
 import { startContactFinder } from "@/app/actions/contactFinder";
-import { verifySession } from "@/lib/dal";
+import { verifySession, getUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { countryName } from "@/lib/leadfinder/countries";
+import { getDictionaryForUser } from "@/lib/i18n/dictionaries";
 
 export default async function Page({ params }: { params: Promise<{ jobId: string }> }) {
   const session = await verifySession();
+  const user = await getUser();
+  const t = getDictionaryForUser(user?.language);
   const { jobId } = await params;
 
   const job = await prisma.searchJob.findUnique({
@@ -43,7 +46,7 @@ export default async function Page({ params }: { params: Promise<{ jobId: string
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <Pill tone={statusTone}>{job.status}</Pill>
+          <Pill tone={statusTone}>{t.common.status.searchJob[job.status]}</Pill>
           {canFindContacts && (
             <form action={startContactFinder}>
               <input type="hidden" name="jobId" value={job.id} />
@@ -51,19 +54,19 @@ export default async function Page({ params }: { params: Promise<{ jobId: string
                 type="submit"
                 className="inline-flex items-center gap-2 rounded bg-black px-5 py-2.5 text-sm font-bold text-white hover:bg-[#222]"
               >
-                Find Contacts →
+                {t.leadFinderResultsPage.findContacts}
               </button>
             </form>
           )}
           {contactFinderRunning && (
-            <Pill tone="soft">Finding contacts…</Pill>
+            <Pill tone="soft">{t.leadFinderResultsPage.findingContacts}</Pill>
           )}
         </div>
       </div>
 
       {job.status === "FAILED" && (
         <Card className="mb-8">
-          <p className="text-red-600 dark:text-red-400">Search failed: {job.errorMessage ?? "Unknown error"}</p>
+          <p className="text-red-600 dark:text-red-400">{t.leadFinderResultsPage.searchFailed.replace("{error}", job.errorMessage ?? t.leadFinderResultsPage.unknownError)}</p>
         </Card>
       )}
 
@@ -72,7 +75,7 @@ export default async function Page({ params }: { params: Promise<{ jobId: string
       <Card className="mt-6">
         {job.results.length === 0 ? (
           <p className="text-neutral-500 dark:text-neutral-400">
-            {isRunning ? "Searching…" : "No results found for this search."}
+            {isRunning ? t.leadFinderResultsPage.searching : t.leadFinderResultsPage.noResultsFound}
           </p>
         ) : job.searchType === "MAPS" ? (
           <MapsResultsTable jobId={job.id} results={job.results} canExport={job.status === "COMPLETED"} />

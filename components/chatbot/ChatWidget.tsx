@@ -70,7 +70,7 @@ export default function ChatWidget({
 
   const gradient = `linear-gradient(135deg, ${themeColor}, color-mix(in srgb, ${themeColor} 45%, #ffffff))`;
 
-  // Each browser gets a stable visitorId so returning conversations can be found again.
+ 
   useEffect(() => {
     const key = "ge_chat_visitor_id";
     let id = window.localStorage.getItem(key);
@@ -81,14 +81,12 @@ export default function ChatWidget({
     setVisitorId(id);
   }, []);
 
-  // Phase 13: when embedded via iframe on a customer's site, tell the host page (chatbot.js)
-  // to resize the iframe — small for just the button, full-size once the panel is open.
+  
   useEffect(() => {
     window.parent?.postMessage({ type: "ge-chat-resize", open }, "*");
   }, [open]);
 
-  // Load any existing conversation the first time the panel is opened, not on every mount —
-  // this widget renders on every dashboard page, so fetching eagerly would fire constantly.
+  
   useEffect(() => {
     if (!open || !companyId || !visitorId || historyFetched.current) return;
     historyFetched.current = true;
@@ -102,9 +100,8 @@ export default function ChatWidget({
       .catch(() => {});
   }, [open, companyId, visitorId]);
 
-  // Phase 6: the chatbot can start the conversation itself after a delay, instead of
-  // only responding once clicked — skipped entirely if the visitor already engaged
-  // (manually or via a past proactive greeting) or already has a conversation on record.
+  
+  
   useEffect(() => {
     if (!companyId || !visitorId) return;
     if (window.localStorage.getItem(PROACTIVE_SHOWN_KEY) === "true") return;
@@ -122,8 +119,7 @@ export default function ChatWidget({
         const data = await res.json();
         if (data.skipped || !Array.isArray(data.messages) || data.messages.length === 0) return;
 
-        // Only lock out future attempts once we know the greeting actually landed —
-        // otherwise a transient failure would silently disable this forever for the visitor.
+        
         window.localStorage.setItem(PROACTIVE_SHOWN_KEY, "true");
 
         historyFetched.current = true;
@@ -139,7 +135,7 @@ export default function ChatWidget({
           }, 1200);
         }
       } catch {
-        // Proactive greeting is a nice-to-have — silently skip on failure, retry on next visit.
+       
       }
     }, proactiveDelayMs);
 

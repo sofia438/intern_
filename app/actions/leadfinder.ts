@@ -16,10 +16,12 @@ export async function startSearchJob(_prevState: FormState, formData: FormData):
     oemNumber: formData.get("oemNumber") || undefined,
     hsCode: formData.get("hsCode") || undefined,
     imageDescription: formData.get("imageDescription") || undefined,
+    industry: formData.get("industry") || undefined,
     countries: formData.getAll("countries"),
     searchEngines: formData.getAll("searchEngines"),
     competitorBrands: formData.getAll("competitorBrands"),
     relatedIndustries: formData.getAll("relatedIndustries"),
+    potentialCustomerWebsites: formData.getAll("potentialCustomerWebsites"),
   });
 
   if (!validatedFields.success) {
@@ -39,10 +41,12 @@ export async function startSearchJob(_prevState: FormState, formData: FormData):
     oemNumber,
     hsCode,
     imageDescription,
+    industry,
     countries,
     searchEngines,
     competitorBrands,
     relatedIndustries,
+    potentialCustomerWebsites,
   } = validatedFields.data;
 
   const job = await prisma.searchJob.create({
@@ -53,10 +57,12 @@ export async function startSearchJob(_prevState: FormState, formData: FormData):
       oemNumber,
       hsCode,
       imageDescription,
+      industry,
       countries,
       searchEngines,
       competitorBrands,
       relatedIndustries,
+      potentialCustomerWebsites,
     },
   });
 

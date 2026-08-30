@@ -29,6 +29,7 @@ export const getUser = cache(async () => {
         name: true,
         email: true,
         role: true,
+        language: true,
         locationCapturedAt: true,
         company: { select: { name: true } },
       },
@@ -41,6 +42,7 @@ export const getUser = cache(async () => {
       name: user.name,
       email: user.email,
       role: user.role,
+      language: user.language,
       companyName: user.company.name,
       needsLocationPrompt: user.locationCapturedAt === null,
     };

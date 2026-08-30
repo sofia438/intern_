@@ -2,9 +2,9 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { countryName, countryLanguage, countryTld } from "@/lib/leadfinder/countries";
-import { generateKeywords, translateProductName, scoreCandidates } from "@/lib/leadfinder/groq";
+import { generateKeywords, translateProductName, scoreCandidates, analyzeReferenceWebsites, type CandidateScore } from "@/lib/leadfinder/groq";
 import { searchCompanies, type SearchCandidate, type SearchEngine } from "@/lib/leadfinder/search";
-import { scrapeWebsite, mapWithConcurrency } from "@/lib/leadfinder/scrape";
+import { scrapeWebsite, scrapePageText, mapWithConcurrency } from "@/lib/leadfinder/scrape";
 
 const SCORE_THRESHOLD = 50;
 const MAX_RESULTS_TO_SCRAPE = 30;
@@ -29,9 +29,18 @@ export async function runSearchJob(jobId: string): Promise<void> {
 
     await prisma.searchJob.update({ where: { id: jobId }, data: { status: "RUNNING" } });
 
-    // Step 1: per-country keyword generation + translation, then search.
-    // generateKeywords/translateProductName/searchCompanies are all
-    // internally resilient (never throw, degrade to safe defaults).
+    
+    let referenceSummary: string | null = null;
+    if (job.potentialCustomerWebsites.length > 0) {
+      const referencePages = await mapWithConcurrency(
+        job.potentialCustomerWebsites,
+        SCRAPE_CONCURRENCY,
+        async (url) => ({ url, text: await scrapePageText(url) })
+      );
+      referenceSummary = await analyzeReferenceWebsites(referencePages);
+    }
+
+    
     const candidatesByCountry = new Map<string, SearchCandidate[]>();
 
     for (const countryCode of job.countries) {
@@ -43,6 +52,8 @@ export async function runSearchJob(jobId: string): Promise<void> {
         oemNumber: job.oemNumber,
         hsCode: job.hsCode,
         imageDescription: job.imageDescription,
+        industry: job.industry,
+        referenceSummary,
         countryName: cName,
       });
 
@@ -78,7 +89,7 @@ export async function runSearchJob(jobId: string): Promise<void> {
       candidatesByCountry.set(countryCode, countryCandidates);
     }
 
-    // Step 2: dedupe by hostname across the whole job.
+    
     const seenHostnames = new Set<string>();
     const dedupedCandidates: CandidateWithCountry[] = [];
 
@@ -91,35 +102,43 @@ export async function runSearchJob(jobId: string): Promise<void> {
       }
     }
 
-    // Step 3: batched AI relevance scoring.
-    const productContext = [job.productName, job.oemNumber, job.hsCode, job.imageDescription]
+    
+    const productContext = [job.productName, job.oemNumber, job.hsCode, job.imageDescription, job.industry]
       .filter(Boolean)
       .join(" | ");
+    const scoreExtraContext = referenceSummary
+      ? `Example target-customer profile (from user-provided reference sites): ${referenceSummary}`
+      : undefined;
 
-    const scores = new Map<string, number>();
+    const scores = new Map<string, CandidateScore>();
     for (let i = 0; i < dedupedCandidates.length; i += SCORE_BATCH_SIZE) {
       const batch = dedupedCandidates.slice(i, i + SCORE_BATCH_SIZE);
-      const batchScores = await scoreCandidates(batch, productContext);
-      for (const [link, score] of Object.entries(batchScores)) {
-        scores.set(link, score);
+      const batchScores = await scoreCandidates(batch, productContext, scoreExtraContext);
+      for (const [link, s] of Object.entries(batchScores)) {
+        scores.set(link, s);
       }
     }
 
     const scored = dedupedCandidates
-      .map((c) => ({ ...c, confidenceScore: scores.get(c.link) ?? null }))
-      .filter((c): c is CandidateWithCountry & { confidenceScore: number } =>
-        c.confidenceScore !== null && c.confidenceScore >= SCORE_THRESHOLD
-      )
+      .map((c) => {
+        const s = scores.get(c.link);
+        return { ...c, confidenceScore: s?.score ?? null, websiteType: s?.websiteType ?? null, matchReason: s?.matchReason ?? null };
+      })
+      .filter((c): c is CandidateWithCountry & {
+        confidenceScore: number;
+        websiteType: "Company Website" | "E-commerce" | null;
+        matchReason: string | null;
+      } => c.confidenceScore !== null && c.confidenceScore >= SCORE_THRESHOLD)
       .sort((a, b) => b.confidenceScore - a.confidenceScore)
       .slice(0, MAX_RESULTS_TO_SCRAPE);
 
-    // Step 4: concurrency-limited scraping.
+   
     const scraped = await mapWithConcurrency(scored, SCRAPE_CONCURRENCY, async (candidate) => {
       const contact = await scrapeWebsite(candidate.link);
       return { ...candidate, ...contact };
     });
 
-    // Step 5: persist.
+    
     if (scraped.length > 0) {
       await prisma.searchResult.createMany({
         data: scraped.map((r) => ({
@@ -131,6 +150,8 @@ export async function runSearchJob(jobId: string): Promise<void> {
           phone: r.phone,
           address: r.address,
           confidenceScore: r.confidenceScore,
+          websiteType: r.websiteType,
+          matchReason: r.matchReason,
         })),
         skipDuplicates: true,
       });

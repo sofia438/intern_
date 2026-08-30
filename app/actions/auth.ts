@@ -61,6 +61,7 @@ export async function register(_prevState: FormState, formData: FormData): Promi
           role: "ADMIN",
         },
       });
+      await tx.chatbot.create({ data: { companyId: company.id } });
       return { userId: user.id, companyId: company.id, role: user.role };
     });
   } catch {
@@ -225,6 +226,6 @@ export async function updateProfile(_prevState: FormState, formData: FormData): 
     return { message: "Something went wrong. Please try again." };
   }
 
-  revalidatePath("/profile");
+  revalidatePath("/settings");
   return { message: "Profile updated." };
 }

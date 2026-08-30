@@ -1,7 +1,7 @@
 -- CreateEnum
 CREATE TYPE "Role" AS ENUM ('ADMIN', 'MEMBER');
 
--- CreateTable
+
 CREATE TABLE "Company" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE "Company" (
     CONSTRAINT "Company_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
@@ -25,7 +25,7 @@ CREATE TABLE "User" (
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+
 CREATE TABLE "PasswordResetToken" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -37,14 +37,14 @@ CREATE TABLE "PasswordResetToken" (
     CONSTRAINT "PasswordResetToken_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
+
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
--- CreateIndex
+
 CREATE UNIQUE INDEX "PasswordResetToken_tokenHash_key" ON "PasswordResetToken"("tokenHash");
 
--- AddForeignKey
+
 ALTER TABLE "User" ADD CONSTRAINT "User_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
+
 ALTER TABLE "PasswordResetToken" ADD CONSTRAINT "PasswordResetToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

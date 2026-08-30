@@ -50,17 +50,35 @@ export const UpdateProfileFormSchema = z.object({
   name: z.string().min(2, { error: "Name must be at least 2 characters long" }).trim(),
 });
 
+export const CompanyProfileFormSchema = z.object({
+  fullName: z.string().trim().min(2, { error: "Name must be at least 2 characters long" }).optional().or(z.literal("")),
+  companyName: z.string().min(2, { error: "Company name must be at least 2 characters long" }).trim(),
+  website: z.string().trim().optional(),
+});
+
+export const ProductFormSchema = z.object({
+  name: z.string().min(1, { error: "Product name is required" }).trim(),
+  englishName: z.string().trim().optional(),
+  hsCode: z.string().trim().optional(),
+});
+
+export const ReferenceWebsiteFormSchema = z.object({
+  url: z.string().trim().min(1, { error: "Enter a website URL" }),
+});
+
 export const SearchJobFormSchema = z.object({
   productName: z.string().min(2, { error: "Product name must be at least 2 characters long" }).trim(),
   oemNumber: z.string().trim().optional(),
   hsCode: z.string().trim().optional(),
   imageDescription: z.string().trim().optional(),
+  industry: z.string().trim().optional(),
   countries: z.array(z.string()).min(1, { error: "Select at least one country" }),
   searchEngines: z
     .array(z.enum(["google", "bing", "yandex"]))
     .min(1, { error: "Select at least one search engine" }),
   competitorBrands: z.array(z.string().trim().min(1)).optional().default([]),
   relatedIndustries: z.array(z.string()).optional().default([]),
+  potentialCustomerWebsites: z.array(z.string().trim().min(1)).optional().default([]),
 });
 
 export const MapsSearchJobFormSchema = z

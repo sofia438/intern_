@@ -6,17 +6,21 @@ import { X } from "lucide-react";
 import { startMapsSearchJob } from "@/app/actions/mapsSearch";
 import { Card, Field } from "@/components/dashboard/DashboardScreens";
 import { SUPPORTED_COUNTRIES } from "@/lib/leadfinder/countries";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 
 function CityAutocomplete({
   countryCode,
   countryLabel,
   value,
   onChange,
+  t,
 }: {
   countryCode: string;
   countryLabel: string;
   value: string;
   onChange: (value: string) => void;
+  t: Dictionary;
 }) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
@@ -63,7 +67,7 @@ function CityAutocomplete({
         onChange={(e) => handleChange(e.target.value)}
         onFocus={() => suggestions.length > 0 && setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        placeholder="City (optional)"
+        placeholder={t.mapsSearchForm.cityOptional}
         className="w-full rounded border border-[#d5d7dd] px-3 py-2.5 text-sm outline-none focus:border-black dark:border-[#3a3a3a] dark:bg-[#2e2e2e] dark:text-neutral-100"
       />
       {open && suggestions.length > 0 && (
@@ -85,6 +89,7 @@ function CityAutocomplete({
 }
 
 export default function MapsSearchForm() {
+  const { dictionary: t } = useLanguage();
   const [state, action, pending] = useActionState(startMapsSearchJob, undefined);
   const [countrySearch, setCountrySearch] = useState("");
   const [selectedCountries, setSelectedCountries] = useState<{ code: string; name: string }[]>([]);
@@ -120,17 +125,17 @@ export default function MapsSearchForm() {
     <form action={action}>
       <Card>
         <div className="mb-8 border-b pb-4 font-mono uppercase tracking-[0.12em]">
-          <strong className="border-b-2 border-black pb-3">Find Businesses on Maps</strong>
+          <strong className="border-b-2 border-black pb-3">{t.mapsSearchForm.findBusinesses}</strong>
         </div>
 
         <div>
-          <span className="mb-2 block font-mono text-sm uppercase tracking-[0.12em]">Countries</span>
+          <span className="mb-2 block font-mono text-sm uppercase tracking-[0.12em]">{t.mapsSearchForm.countries}</span>
           <details className="rounded border border-[#d5d7dd] dark:border-[#3a3a3a]">
             <summary className="flex h-14 cursor-pointer select-none items-center px-5 text-lg dark:text-neutral-100">
               {selectedCountries.length > 0 ? (
-                <span>{selectedCountries.length} selected</span>
+                <span>{t.mapsSearchForm.selectedCount.replace("{count}", String(selectedCountries.length))}</span>
               ) : (
-                <span className="text-neutral-400 dark:text-neutral-500">Select countries</span>
+                <span className="text-neutral-400 dark:text-neutral-500">{t.mapsSearchForm.selectCountries}</span>
               )}
             </summary>
             <div className="border-t border-[#ececec] p-3 dark:border-[#3a3a3a]">
@@ -138,12 +143,12 @@ export default function MapsSearchForm() {
                 type="text"
                 value={countrySearch}
                 onChange={(e) => setCountrySearch(e.target.value)}
-                placeholder="Search countries..."
+                placeholder={t.mapsSearchForm.searchCountriesPlaceholder}
                 className="mb-2 w-full rounded border border-[#d5d7dd] px-3 py-2 text-sm outline-none focus:border-black dark:border-[#3a3a3a] dark:bg-[#2e2e2e] dark:text-neutral-100"
               />
               <div className="max-h-56 overflow-y-auto">
                 {filteredCountries.length === 0 ? (
-                  <p className="p-2 text-sm text-neutral-500 dark:text-neutral-400">No countries match.</p>
+                  <p className="p-2 text-sm text-neutral-500 dark:text-neutral-400">{t.mapsSearchForm.noCountriesMatch}</p>
                 ) : (
                   filteredCountries.map((country) => (
                     <label
@@ -170,7 +175,7 @@ export default function MapsSearchForm() {
                   className="inline-flex items-center gap-2 rounded-full bg-[#f1eee8] px-3 py-1 text-sm dark:bg-[#3a3a3a] dark:text-neutral-200"
                 >
                   {country.name}
-                  <button type="button" onClick={() => removeCountry(country.code)} aria-label={`Remove ${country.name}`}>
+                  <button type="button" onClick={() => removeCountry(country.code)} aria-label={t.mapsSearchForm.removeCountry.replace("{name}", country.name)}>
                     <X className="h-3.5 w-3.5 text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white" />
                   </button>
                   <input type="hidden" name="countries" value={country.code} />
@@ -186,9 +191,9 @@ export default function MapsSearchForm() {
         {selectedCountries.length > 0 && (
           <div className="mt-8">
             <span className="mb-2 block font-mono text-sm uppercase tracking-[0.12em]">
-              City per country (optional)
+              {t.mapsSearchForm.cityPerCountry}
             </span>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {selectedCountries.map((country) => (
                 <div key={country.code}>
                   <CityAutocomplete
@@ -196,6 +201,7 @@ export default function MapsSearchForm() {
                     countryLabel={country.name}
                     value={cityByCountry[country.code] ?? ""}
                     onChange={(city) => setCityForCountry(country.code, city)}
+                    t={t}
                   />
                   <input type="hidden" name="cityCountry" value={country.code} />
                   <input type="hidden" name="cityValue" value={cityByCountry[country.code] ?? ""} />
@@ -205,9 +211,9 @@ export default function MapsSearchForm() {
           </div>
         )}
 
-        <div className="mt-8 grid grid-cols-2 gap-8">
-          <Field label="Keyword(s)" name="keyword" placeholder="e.g. CNC Machining" />
-          <Field label="Industry" name="industry" placeholder="e.g. Manufacturing" />
+        <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2">
+          <Field label={t.mapsSearchForm.keywords} name="keyword" placeholder={t.mapsSearchForm.keywordsPlaceholder} />
+          <Field label={t.mapsSearchForm.industry} name="industry" placeholder={t.mapsSearchForm.industryPlaceholder} />
         </div>
         {state?.errors?.keyword && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{state.errors.keyword[0]}</p>}
 
@@ -219,7 +225,7 @@ export default function MapsSearchForm() {
             disabled={pending}
             className="inline-flex items-center gap-3 bg-black px-12 py-5 text-xl font-black text-white disabled:opacity-60 dark:bg-neutral-100 dark:text-black"
           >
-            {pending ? "Starting…" : "Search Maps →"}
+            {pending ? t.mapsSearchForm.starting : t.mapsSearchForm.searchMaps}
           </button>
         </div>
       </Card>

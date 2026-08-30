@@ -6,10 +6,7 @@ export type SearchCandidate = {
 
 export type SearchEngine = "google" | "bing" | "yandex";
 
-// Yandex has no simple 2-letter country param (unlike Bing's `cc`) — it's
-// driven by which Yandex domain you query. Small best-effort map for the
-// markets Yandex actually serves; anything else safely falls back to
-// yandex.com (English results) rather than failing.
+
 const YANDEX_DOMAIN_BY_COUNTRY: Record<string, string> = {
   RU: "yandex.ru",
   TR: "yandex.com.tr",

@@ -1,11 +1,14 @@
 import Link from "next/link";
 
 import { Card } from "@/components/dashboard/DashboardScreens";
-import { verifySession } from "@/lib/dal";
+import { verifySession, getUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
+import { getDictionaryForUser } from "@/lib/i18n/dictionaries";
 
 export default async function Page() {
   const session = await verifySession();
+  const user = await getUser();
+  const t = getDictionaryForUser(user?.language);
 
   const leads = await prisma.lead.findMany({
     where: { companyId: session.companyId },
@@ -16,26 +19,26 @@ export default async function Page() {
   return (
     <main className="p-8">
       <div className="mb-8">
-        <h1 className="text-5xl font-black tracking-tight">Chatbot Leads</h1>
-        <p className="mt-2 text-xl text-neutral-600">Contacts collected by the AI chatbot from qualified conversations.</p>
+        <h1 className="text-5xl font-black tracking-tight">{t.chatbotLeadsPage.title}</h1>
+        <p className="mt-2 text-xl text-neutral-600">{t.chatbotLeadsPage.subtitle}</p>
       </div>
 
       <Card>
         {leads.length === 0 ? (
-          <p className="text-neutral-500">No leads yet. Leads appear here once a visitor submits their contact details in the chatbot.</p>
+          <p className="text-neutral-500">{t.chatbotLeadsPage.emptyState}</p>
         ) : (
           <div className="overflow-hidden rounded border border-[#dfe2e7]">
             <table className="w-full text-left">
               <thead className="bg-[#f1eee8] font-mono text-sm uppercase tracking-[0.12em] text-neutral-600">
                 <tr>
-                  <th className="p-4">Name</th>
-                  <th className="p-4">Email</th>
-                  <th className="p-4">Phone</th>
-                  <th className="p-4">Company</th>
-                  <th className="p-4">Interest</th>
-                  <th className="p-4">Quantity</th>
-                  <th className="p-4">Country</th>
-                  <th className="p-4">Date</th>
+                  <th className="p-4">{t.chatbotLeadsPage.tableName}</th>
+                  <th className="p-4">{t.chatbotLeadsPage.tableEmail}</th>
+                  <th className="p-4">{t.chatbotLeadsPage.tablePhone}</th>
+                  <th className="p-4">{t.chatbotLeadsPage.tableCompany}</th>
+                  <th className="p-4">{t.chatbotLeadsPage.tableInterest}</th>
+                  <th className="p-4">{t.chatbotLeadsPage.tableQuantity}</th>
+                  <th className="p-4">{t.chatbotLeadsPage.tableCountry}</th>
+                  <th className="p-4">{t.chatbotLeadsPage.tableDate}</th>
                   <th className="p-4" />
                 </tr>
               </thead>
@@ -52,7 +55,7 @@ export default async function Page() {
                     <td className="p-4">{lead.createdAt.toLocaleDateString()}</td>
                     <td className="p-4">
                       <Link href={`/settings/chatbot/conversations/${lead.conversationId}`} className="font-bold">
-                        View chat →
+                        {t.chatbotLeadsPage.viewChat}
                       </Link>
                     </td>
                   </tr>

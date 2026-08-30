@@ -30,8 +30,7 @@ export default function RootLayout({
     >
       <head>
         <script
-          // Runs before paint to avoid a light->dark flash on load. Reads the
-          // stored preference, falling back to the OS preference on first visit.
+          
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`,
           }}

@@ -56,8 +56,7 @@ export async function createCampaign(_prevState: FormState, formData: FormData):
     }
     attachmentName = attachment.name;
     attachmentType = attachment.type || undefined;
-    // Buffer.from() always allocates a plain ArrayBuffer (never SharedArrayBuffer),
-    // but the TypedArray lib types don't narrow that for us.
+    
     attachmentData = Uint8Array.from(Buffer.from(await attachment.arrayBuffer())) as Uint8Array<ArrayBuffer>;
   }
 

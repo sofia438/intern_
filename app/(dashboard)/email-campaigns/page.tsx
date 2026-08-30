@@ -1,8 +1,9 @@
 import Link from "next/link";
 
 import { Card, Pill } from "@/components/dashboard/DashboardScreens";
-import { verifySession } from "@/lib/dal";
+import { verifySession, getUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
+import { getDictionaryForUser } from "@/lib/i18n/dictionaries";
 
 const STATUS_TONE = {
   DRAFT: "soft",
@@ -12,10 +13,10 @@ const STATUS_TONE = {
 } as const;
 
 const RANGE_OPTIONS = [
-  { value: "1d", label: "1d", days: 1 },
-  { value: "7d", label: "7d", days: 7 },
-  { value: "30d", label: "30d", days: 30 },
-  { value: "90d", label: "90d", days: 90 },
+  { value: "1d", days: 1 },
+  { value: "7d", days: 7 },
+  { value: "30d", days: 30 },
+  { value: "90d", days: 90 },
 ] as const;
 
 type RangeValue = (typeof RANGE_OPTIONS)[number]["value"];
@@ -29,6 +30,8 @@ function rangeCutoff(range: RangeValue): Date {
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
   const session = await verifySession();
+  const user = await getUser();
+  const t = getDictionaryForUser(user?.language);
   const { range: rangeParam } = await searchParams;
   const range: RangeValue = RANGE_OPTIONS.some((r) => r.value === rangeParam) ? (rangeParam as RangeValue) : "30d";
 
@@ -48,16 +51,16 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
   return (
     <main className="p-8">
       <div className="mb-8">
-        <h1 className="text-5xl font-black tracking-tight">Email Campaigns</h1>
+        <h1 className="text-5xl font-black tracking-tight">{t.emailCampaignsPage.title}</h1>
         <p className="mt-2 text-xl text-neutral-600 dark:text-neutral-400">
-          Send personalized introduction emails to the companies you've found.
+          {t.emailCampaignsPage.subtitle}
         </p>
       </div>
 
-      <Card title="Start a New Campaign">
+      <Card title={t.emailCampaignsPage.startNewCampaign}>
         {eligibleJobs.length === 0 ? (
           <p className="text-neutral-500 dark:text-neutral-400">
-            Run a Website Search from Lead Finder and let it complete before starting a campaign.
+            {t.emailCampaignsPage.emptyState}
           </p>
         ) : (
           <div className="divide-y divide-[#e5e5e5] dark:divide-[#3a3a3a]">
@@ -69,9 +72,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
               >
                 <div>
                   <strong className="text-lg dark:text-white">{job.productName}</strong>
-                  <small className="block text-neutral-500 dark:text-neutral-400">{job.resultsCount} companies found</small>
+                  <small className="block text-neutral-500 dark:text-neutral-400">{t.emailCampaignsPage.companiesFound.replace("{count}", String(job.resultsCount))}</small>
                 </div>
-                <span className="font-bold dark:text-white">Build Campaign →</span>
+                <span className="font-bold dark:text-white">{t.emailCampaignsPage.buildCampaign}</span>
               </Link>
             ))}
           </div>
@@ -80,7 +83,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
 
       <div className="mt-8">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-3xl font-black dark:text-white">Past Campaigns</h2>
+          <h2 className="text-3xl font-black dark:text-white">{t.emailCampaignsPage.pastCampaigns}</h2>
           <div className="inline-flex items-center gap-1 rounded-full border border-[#d5d7dd] bg-[#f4f2f2] p-1 dark:border-[#3a3a3a] dark:bg-[#2e2e2e]">
             {RANGE_OPTIONS.map((option) => (
               <Link
@@ -92,7 +95,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
                     : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
                 }`}
               >
-                {option.label}
+                {t.common.range[option.value]}
               </Link>
             ))}
           </div>
@@ -100,7 +103,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
 
         <Card>
           {campaigns.length === 0 ? (
-            <p className="text-neutral-500 dark:text-neutral-400">No campaigns in the last {range}.</p>
+            <p className="text-neutral-500 dark:text-neutral-400">{t.emailCampaignsPage.noCampaignsInRange.replace("{range}", t.common.range[range])}</p>
           ) : (
             <div className="divide-y divide-[#e5e5e5] dark:divide-[#3a3a3a]">
               {campaigns.map((campaign) => (
@@ -114,8 +117,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
                     <small className="block text-neutral-500 dark:text-neutral-400">{campaign.searchJob.productName}</small>
                   </div>
                   <div className="flex items-center gap-4">
-                    <Pill tone={STATUS_TONE[campaign.status]}>{campaign.status}</Pill>
-                    <span className="dark:text-neutral-200">{campaign._count.recipients} recipients</span>
+                    <Pill tone={STATUS_TONE[campaign.status]}>{t.common.status.campaign[campaign.status]}</Pill>
+                    <span className="dark:text-neutral-200">{t.emailCampaignsPage.recipientsCount.replace("{count}", String(campaign._count.recipients))}</span>
                   </div>
                 </Link>
               ))}

@@ -23,8 +23,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "This chatbot is not available." }, { status: 404 });
     }
 
-    // Only reuse the client-supplied conversationId if it really belongs to this visitor/company —
-    // otherwise a visitor could read another company's conversation just by guessing an id.
+    
     let conversation = requestedConversationId
       ? await prisma.conversation.findUnique({ where: { id: requestedConversationId } })
       : null;

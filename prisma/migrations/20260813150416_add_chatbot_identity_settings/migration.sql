@@ -1,4 +1,4 @@
--- AlterTable
+
 ALTER TABLE "Chatbot" ADD COLUMN     "assistantName" TEXT NOT NULL DEFAULT 'AI Assistant',
 ADD COLUMN     "enabled" BOOLEAN NOT NULL DEFAULT false,
 ADD COLUMN     "greeting" TEXT NOT NULL DEFAULT 'Hello! How can I help you today?',

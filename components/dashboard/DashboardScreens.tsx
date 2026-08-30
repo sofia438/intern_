@@ -3,19 +3,17 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   BarChart3,
-  Bell,
-  Calendar,
   Database,
   Download,
   Eye,
-  Gauge,
   Globe2,
   Grid2X2,
-  Image as ImageIcon,
   LogOut,
   Mail,
+  Menu,
   MoreVertical,
   RefreshCw,
   Search,
@@ -24,59 +22,98 @@ import {
   Sparkles,
   UserRound,
   Users,
+  X,
   Zap,
 } from "lucide-react";
 
 import { logout } from "@/app/actions/auth";
 import LocationPromptModal from "@/components/dashboard/LocationPromptModal";
+import NotificationBell from "@/components/dashboard/NotificationBell";
+import HeaderSearch from "@/components/dashboard/HeaderSearch";
 import ThemeToggle from "@/components/dashboard/ThemeToggle";
+import GeographicDistribution from "@/components/dashboard/GeographicDistribution";
+import { KpiDelta } from "@/components/dashboard/ReportsCharts";
+import type { DashboardOverviewStats, RecentActivityRow } from "@/lib/dashboardOverview";
+import { LanguageProvider, useLanguage } from "@/lib/i18n/LanguageContext";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
+import type { GeoDistribution } from "@/lib/visitorIntelligenceShared";
 
-const navItems = [
-  { label: "Dashboard", href: "/dashboard", icon: Grid2X2 },
-  { label: "Visitor Intelligence", href: "/visitor-intelligence", icon: Eye },
-  { label: "Lead Finder", href: "/lead-finder", icon: Search },
-  { label: "Image Search", href: "/image-search", icon: ImageIcon },
-  { label: "Trade Databases", href: "/trade-databases", icon: Database },
-  { label: "Contact Finder", href: "/contact-finder", icon: Users },
-  { label: "Email Campaigns", href: "/email-campaigns", icon: Mail },
-  { label: "Reports", href: "/reports", icon: BarChart3 },
-  { label: "Billing", href: "/billing", icon: ShieldCheck },
-  { label: "Admin", href: "/admin", icon: Gauge },
-  { label: "Settings", href: "/settings", icon: Settings },
-  { label: "Profile", href: "/profile", icon: UserRound },
-];
-
-const leads = [
-  ["Mekong Textiles", "Apparel & Fashion", "Vietnam", "Trade DB", "Verified"],
-  ["Global Solars", "Renewable Energy", "Germany", "LinkedIn", "Contacted"],
-  ["Nordic AgriCo", "Agriculture", "Norway", "Trade DB", "Verified"],
-  ["Inca Ore Ltd.", "Mining", "Peru", "Maps Search", "Flagged"],
-];
+function getNavItems(t: Dictionary) {
+  return [
+    { label: t.nav.dashboard, href: "/dashboard", icon: Grid2X2 },
+    { label: t.nav.visitorIntelligence, href: "/visitor-intelligence", icon: Eye },
+    { label: t.nav.leadFinder, href: "/lead-finder", icon: Search },
+    { label: t.nav.tradeDatabases, href: "/trade-databases", icon: Database },
+    { label: t.nav.contactFinder, href: "/contact-finder", icon: Users },
+    { label: t.nav.emailCampaigns, href: "/email-campaigns", icon: Mail },
+    { label: t.nav.reports, href: "/reports", icon: BarChart3 },
+    { label: t.nav.billing, href: "/billing", icon: ShieldCheck },
+    { label: t.nav.settings, href: "/settings", icon: Settings },
+  ];
+}
 
 function cx(...classes: Array<string | false | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-type DashboardUser = { name: string; email: string; role: string; companyName: string; needsLocationPrompt: boolean } | null;
+type DashboardUser = { name: string; email: string; role: string; companyName: string; language: string; needsLocationPrompt: boolean } | null;
 
 export function DashboardShell({ children, user }: { children: React.ReactNode; user: DashboardUser }) {
+  return (
+    <LanguageProvider initialLanguage={user?.language ?? "en"}>
+      <DashboardShellInner user={user}>{children}</DashboardShellInner>
+    </LanguageProvider>
+  );
+}
+
+function DashboardShellInner({ children, user }: { children: React.ReactNode; user: DashboardUser }) {
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const { dictionary: t } = useLanguage();
+  const navItems = getNavItems(t);
   const initials = user
     ? user.name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()
     : "?";
 
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
   return (
     <div className="min-h-screen bg-[#f8f7f6] text-[#050b1d] dark:bg-[#1a1a1a] dark:text-neutral-100">
-      <aside className="fixed left-0 top-0 z-20 flex h-screen w-[300px] flex-col border-r border-[#d8d8d8] bg-white dark:border-[#3a3a3a] dark:bg-[#242424]">
-        <Link href="/dashboard" className="flex items-center gap-4 px-8 py-8">
-          <Image src="/images/logo.png" alt="GlobalExpo Logo" width={48} height={48} className="object-contain" />
-          <span className="leading-tight">
-            <strong className="block text-2xl font-black tracking-tight">GlobalExpo</strong>
-            <small className="font-mono text-sm uppercase tracking-[0.18em] text-neutral-600 dark:text-neutral-400">Enterprise Tier</small>
-          </span>
-        </Link>
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
 
-        <nav className="mt-4 flex-1 space-y-1 px-5">
+      <aside
+        className={cx(
+          "fixed left-0 top-0 z-40 flex h-screen w-[280px] flex-col border-r border-[#d8d8d8] bg-white transition-transform duration-200 dark:border-[#3a3a3a] dark:bg-[#242424] md:translate-x-0 md:max-[1199px]:w-20 min-[1200px]:w-[280px]",
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        <div className="flex items-center justify-between px-8 py-8 md:max-[1199px]:justify-center md:max-[1199px]:px-0">
+          <Link href="/dashboard" className="flex items-center gap-4">
+            <Image src="/images/logo.png" alt="GlobalExpo Logo" width={40} height={40} className="object-contain" />
+            <span className="leading-tight md:max-[1199px]:hidden">
+              <strong className="block text-2xl font-black tracking-tight">GlobalExpo</strong>
+              <small className="font-mono text-sm uppercase tracking-[0.18em] text-neutral-600 dark:text-neutral-400">{t.nav.tagline}</small>
+            </span>
+          </Link>
+          <button
+            type="button"
+            onClick={() => setMobileOpen(false)}
+            className="text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white md:hidden"
+            aria-label="Close menu"
+          >
+            <X size={24} />
+          </button>
+        </div>
+
+        <nav className="mt-4 flex-1 space-y-1 overflow-y-auto px-5 md:max-[1199px]:px-3">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
@@ -84,53 +121,60 @@ export function DashboardShell({ children, user }: { children: React.ReactNode; 
               <Link
                 key={item.href}
                 href={item.href}
+                title={item.label}
                 className={cx(
-                  "flex items-center gap-4 px-5 py-3 text-lg transition",
+                  "flex items-center gap-4 px-5 py-3 text-lg transition md:max-[1199px]:justify-center md:max-[1199px]:px-2",
                   active
                     ? "border-r-2 border-black bg-[#f0efed] font-bold text-black dark:border-white dark:bg-[#3a3a3a] dark:text-white"
                     : "text-neutral-700 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-[#3a3a3a]"
                 )}
               >
-                <Icon size={24} />
-                <span>{item.label}</span>
+                <Icon size={24} className="shrink-0" />
+                <span className="md:max-[1199px]:hidden">{item.label}</span>
               </Link>
             );
           })}
         </nav>
-
-        <div className="border-t border-[#d8d8d8] p-5 dark:border-[#3a3a3a]">
-          <Link href="/lead-finder" className="flex items-center justify-center gap-3 bg-[#e7f600] px-5 py-4 font-black uppercase tracking-[0.12em] text-black">
-            <Zap size={22} /> Generate Leads
-          </Link>
-          <div className="mt-6 grid gap-3 text-sm text-neutral-600 dark:text-neutral-400">
-            <Link href="/reports">Help Center</Link>
-            <Link href="/settings">Contact Support</Link>
-          </div>
-        </div>
       </aside>
 
-      <div className="pl-[300px]">
-        <header className="sticky top-0 z-10 flex h-20 items-center justify-between border-b border-[#d8d8d8] bg-white/95 px-8 backdrop-blur dark:border-[#3a3a3a] dark:bg-[#242424]/95">
-          <label className="flex h-12 w-[520px] items-center gap-3 rounded border border-[#d5d7dd] bg-[#f4f2f2] px-4 text-neutral-500 dark:border-[#3a3a3a] dark:bg-[#2e2e2e] dark:text-neutral-400">
-            <Search size={22} />
-            <input className="w-full bg-transparent outline-none" placeholder="Search leads, databases, or companies..." />
-          </label>
-          <div className="flex items-center gap-5">
-            <Link className="font-mono text-sm" href="/trade-databases">Marketplace</Link>
-            <Link className="font-mono text-sm" href="/reports">Documentation</Link>
-            <Bell size={23} />
+      <div className="md:max-[1199px]:pl-20 min-[1200px]:pl-[280px]">
+        <header className="sticky top-0 z-10 flex h-20 items-center justify-between gap-3 border-b border-[#d8d8d8] bg-white/95 px-4 backdrop-blur dark:border-[#3a3a3a] dark:bg-[#242424]/95 md:max-[1199px]:px-6 min-[1200px]:px-8">
+          <div className="flex min-w-0 flex-1 items-center gap-3 md:gap-5">
+            <button
+              type="button"
+              onClick={() => setMobileOpen(true)}
+              className="shrink-0 text-neutral-700 hover:text-black dark:text-neutral-300 dark:hover:text-white md:hidden"
+              aria-label="Open menu"
+            >
+              <Menu size={26} />
+            </button>
+            <Link href="/dashboard" className="flex shrink-0 items-center gap-2 md:hidden">
+              <Image src="/images/logo.png" alt="GlobalExpo Logo" width={28} height={28} className="object-contain" />
+              <strong className="text-lg font-black tracking-tight">GlobalExpo</strong>
+            </Link>
+            <HeaderSearch placeholder={t.header.searchPlaceholder} />
+          </div>
+          <div className="flex shrink-0 items-center gap-3 md:gap-5">
+            <Link className="hidden font-mono text-sm lg:inline" href="/trade-databases">{t.header.marketplace}</Link>
+            <Link className="hidden font-mono text-sm lg:inline" href="/reports">{t.header.documentation}</Link>
+            <NotificationBell />
             <ThemeToggle />
-            <Link href="/billing" className="rounded-full bg-[#f3efe3] px-5 py-3 font-mono text-sm transition hover:bg-[#ece5d1] dark:bg-[#3a3a3a] dark:text-neutral-200 dark:hover:bg-[#454545]">Enterprise Plan</Link>
-            <div className="flex items-center gap-3 border-l pl-5 dark:border-[#3a3a3a]">
-              <Link href="/profile" className="flex items-center gap-3">
-                <span className="grid h-11 w-11 place-items-center rounded-full bg-[#dfe5ec] font-bold dark:bg-[#3a3a3a] dark:text-white">{initials}</span>
+            <Link
+              href="/billing"
+              className="hidden rounded-full bg-[#f3efe3] px-5 py-3 font-mono text-sm transition hover:bg-[#ece5d1] dark:bg-[#3a3a3a] dark:text-neutral-200 dark:hover:bg-[#454545] sm:inline-block"
+            >
+              {t.header.enterprisePlan}
+            </Link>
+            <div className="flex items-center gap-3 border-l pl-3 dark:border-[#3a3a3a] md:pl-5">
+              <Link href="/settings" className="flex items-center gap-3">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[#dfe5ec] font-bold dark:bg-[#3a3a3a] dark:text-white">{initials}</span>
                 <span className="hidden xl:block leading-tight">
                   <strong>{user?.name ?? "Guest"}</strong>
                   <small className="block uppercase text-neutral-500 dark:text-neutral-400">{user?.role ?? ""}</small>
                 </span>
               </Link>
               <form action={logout}>
-                <button type="submit" title="Log out" className="text-neutral-500 transition hover:text-black dark:text-neutral-400 dark:hover:text-white">
+                <button type="submit" title={t.header.logout} className="text-neutral-500 transition hover:text-black dark:text-neutral-400 dark:hover:text-white">
                   <LogOut size={20} />
                 </button>
               </form>
@@ -145,7 +189,7 @@ export function DashboardShell({ children, user }: { children: React.ReactNode; 
 }
 
 function Page({ title, subtitle, actions, children }: { title: string; subtitle?: string; actions?: React.ReactNode; children: React.ReactNode }) {
-  return <main className="p-8"><div className="mb-8 flex items-start justify-between gap-5"><div><h1 className="text-5xl font-black tracking-tight">{title}</h1>{subtitle ? <p className="mt-2 text-xl text-neutral-600">{subtitle}</p> : null}</div>{actions ? <div className="flex gap-3">{actions}</div> : null}</div>{children}</main>;
+  return <main className="p-4 sm:p-8"><div className="mb-8 flex flex-wrap items-start justify-between gap-5"><div><h1 className="text-3xl font-black tracking-tight sm:text-5xl">{title}</h1>{subtitle ? <p className="mt-2 text-lg text-neutral-600 sm:text-xl">{subtitle}</p> : null}</div>{actions ? <div className="flex flex-wrap gap-3">{actions}</div> : null}</div>{children}</main>;
 }
 
 export function Button({ children, tone = "dark" }: { children: React.ReactNode; tone?: "dark" | "light" | "acid" }) {
@@ -156,8 +200,8 @@ export function Card({ title, subtitle, children, className }: { title?: string;
   return <section className={cx("rounded-md border border-[#dfe2e7] bg-white shadow-sm dark:border-[#3a3a3a] dark:bg-[#242424]", className)}>{title ? <div className="border-b border-[#ececec] p-7 dark:border-[#3a3a3a]"><h2 className="text-3xl font-black dark:text-white">{title}</h2>{subtitle ? <p className="mt-1 text-neutral-600 dark:text-neutral-400">{subtitle}</p> : null}</div> : null}<div className="p-7">{children}</div></section>;
 }
 
-function Stat({ label, value, note, icon }: { label: string; value: string; note: string; icon: React.ReactNode }) {
-  return <Card className="min-h-[145px]"><div className="flex justify-between"><div><p className="text-neutral-600">{label}</p><strong className="mt-6 block text-4xl font-black">{value}</strong><small className="text-[#5b6300]">{note}</small></div><span className="grid h-10 w-10 place-items-center rounded bg-[#f2f1ef] dark:bg-[#3a3a3a] dark:text-neutral-200">{icon}</span></div></Card>;
+export function Stat({ label, value, note, icon }: { label: string; value: string; note: React.ReactNode; icon: React.ReactNode }) {
+  return <Card className="min-h-[145px]"><div className="flex justify-between"><div><p className="text-neutral-600 dark:text-neutral-400">{label}</p><strong className="mt-6 block text-4xl font-black dark:text-white">{value}</strong><small className="text-[#5b6300] dark:text-[#c7d400]">{note}</small></div><span className="grid h-10 w-10 place-items-center rounded bg-[#f2f1ef] dark:bg-[#3a3a3a] dark:text-neutral-200">{icon}</span></div></Card>;
 }
 
 export function Pill({ children, tone = "soft" }: { children: React.ReactNode; tone?: "soft" | "acid" | "danger" | "dark" }) {
@@ -168,7 +212,7 @@ function Progress({ value, tone = "dark" }: { value: number; tone?: "dark" | "ac
   return <span className="block h-2 rounded bg-[#ecebea]"><span className={cx("block h-2 rounded", tone === "dark" && "bg-black", tone === "acid" && "bg-[#e7f600]", tone === "danger" && "bg-red-600")} style={{ width: `${value}%` }} /></span>;
 }
 
-function DonutChart({ segments, centerLabel }: { segments: { label: string; value: number; color: string }[]; centerLabel: string }) {
+export function DonutChart({ segments, centerLabel }: { segments: { label: string; value: number; color: string }[]; centerLabel: string }) {
   const size = 220;
   const stroke = 26;
   const r = (size - stroke) / 2;
@@ -239,47 +283,99 @@ function WorldMapMock() {
   return <div className="relative h-[430px] overflow-hidden rounded bg-[url('/images/world2.jpeg')] bg-cover bg-top"><div className="absolute left-8 top-8 rounded bg-white p-4 shadow"><strong className="block">Top Regions</strong><p>North America 42%</p><Progress value={42} /><p className="mt-2">European Union 28%</p><Progress value={28} /></div><span className="absolute left-[43%] top-[34%] h-5 w-5 rounded-full bg-black ring-4 ring-white" /><span className="absolute right-[24%] top-[42%] h-4 w-4 rounded-full bg-black ring-4 ring-white" /></div>;
 }
 
-function DataTable({ rows = leads }: { rows?: string[][] }) {
-  return <div className="overflow-hidden rounded border border-[#dfe2e7]"><table className="w-full text-left"><thead className="bg-[#f1eee8] font-mono text-sm uppercase tracking-[0.12em] text-neutral-600"><tr><th className="p-4">Company</th><th>Country</th><th>Source</th><th>Status</th><th /></tr></thead><tbody>{rows.map((row) => <tr className="border-t border-[#e5e5e5]" key={row[0]}><td className="p-4"><strong>{row[0]}</strong><small className="block text-neutral-500">{row[1]}</small></td><td>{row[2]}</td><td><Pill>{row[3]}</Pill></td><td><span className={row[4] === "Flagged" ? "text-red-600" : "text-[#5b6300]"}>● {row[4]}</span></td><td><MoreVertical size={20} /></td></tr>)}</tbody></table></div>;
+function DataTable({ rows }: { rows: RecentActivityRow[] }) {
+  if (rows.length === 0) {
+    return <p className="text-neutral-500 dark:text-neutral-400">No leads found yet. Run a search from Lead Finder to see activity here.</p>;
+  }
+  return <div className="overflow-x-auto rounded border border-[#dfe2e7] dark:border-[#3a3a3a]"><table className="w-full min-w-[560px] text-left"><thead className="bg-[#f1eee8] font-mono text-sm uppercase tracking-[0.12em] text-neutral-600 dark:bg-[#2e2e2e] dark:text-neutral-300"><tr><th className="p-4">Company</th><th>Country</th><th>Source</th><th>Status</th><th /></tr></thead><tbody>{rows.map((row) => <tr className="border-t border-[#e5e5e5] dark:border-[#3a3a3a]" key={row.id}><td className="p-4"><strong className="dark:text-white">{row.company}</strong>{row.subtitle && <small className="block text-neutral-500 dark:text-neutral-400">{row.subtitle}</small>}</td><td className="dark:text-neutral-200">{row.country}</td><td><Pill>{row.source}</Pill></td><td><span className={row.status === "Contacted" ? "text-[#5b6300] dark:text-[#c7d400]" : "text-neutral-500 dark:text-neutral-400"}>● {row.status}</span></td><td><MoreVertical size={20} className="dark:text-neutral-400" /></td></tr>)}</tbody></table></div>;
 }
 
-export function DashboardPage() {
-  return <Page title="Dashboard Overview" subtitle="Global export lead metrics and real-time intelligence for the last 30 days." actions={<><Button tone="light"><Calendar size={18} /> Last 30 Days</Button><Button><Download size={18} /> Export Report</Button></>}><div className="grid grid-cols-5 gap-5"><Stat label="Total Leads Found" value="154.2k" note="+8.2% vs last month" icon={<Users size={22} />} /><Stat label="New Leads Today" value="+1,240" note="Updated 2m ago" icon={<UserRound size={22} />} /><Stat label="Emails Sent" value="85.6k" note="98.4% deliverability" icon={<Mail size={22} />} /><Stat label="Countries Reached" value="42" note="Expanding in APAC" icon={<Globe2 size={22} />} /><Stat label="Active Campaigns" value="12" note="4 performing above avg" icon={<Zap size={22} />} /></div><div className="mt-8 grid grid-cols-[2fr_1fr] gap-8"><Card title="Global Lead Distribution" subtitle="Real-time visualization of lead intensity and connection routes."><WorldMapMock /></Card><Card title="Leads by Industry" subtitle="Distribution across primary sectors.">{[["Manufacturing",90,"45k"],["Technology",60,"32k"],["Agriculture",45,"24k"],["Energy",35,"18k"],["Logistics",22,"12k"]].map(([n,v,c]) => <div className="mb-7" key={n as string}><div className="mb-2 flex justify-between"><span>{n}</span><strong>{c}</strong></div><Progress value={v as number} /></div>)}<strong>View all industries →</strong></Card></div><div className="mt-8 grid grid-cols-[2fr_1fr] gap-8"><Card title="Recent Activity"><DataTable /></Card><div className="flex flex-col gap-8"><Card title="Monthly Growth" subtitle="Lead acquisition trend analysis."><div className="flex h-[220px] items-end gap-3 border-b pb-8 dark:border-[#3a3a3a]">{[35,48,74,92].map((h,i)=><div className="flex-1" key={h}><div className="rounded-t bg-black dark:bg-white" style={{height:h*1.6}} /><strong className="mt-3 block text-center text-sm">{["8.4k","10.1k","12.5k","14.2k"][i]}</strong></div>)}</div></Card><Card title="Performance Overview" subtitle="Key metrics at a glance."><DonutChart centerLabel="70%" segments={[{label:"Deliverability",value:98,color:"#2563eb"},{label:"Campaign Completion",value:82,color:"#1e3a8a"},{label:"Plan Usage",value:67,color:"#60a5fa"},{label:"Conversion Rate",value:34,color:"#93c5fd"}]} /></Card></div></div></Page>;
+function compactNumber(value: number): string {
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
+  return value.toLocaleString();
+}
+
+export function DashboardPage({ stats, recentActivity }: { stats: DashboardOverviewStats; recentActivity: RecentActivityRow[] }) {
+  const { dictionary: t } = useLanguage();
+  return <Page title={t.dashboardPage.title} subtitle={t.dashboardPage.subtitle}><div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-5">
+    <Stat label={t.dashboardPage.totalLeadsFound} value={compactNumber(stats.totalLeadsFound.value)} note={<KpiDelta deltaPct={stats.totalLeadsFound.deltaPct} />} icon={<Users size={22} />} />
+    <Stat label={t.dashboardPage.newLeadsToday} value={`+${stats.newLeadsToday.toLocaleString()}`} note="Since midnight" icon={<UserRound size={22} />} />
+    <Stat label={t.dashboardPage.emailsSent} value={compactNumber(stats.emailsSent.value)} note={stats.emailsSent.deliverabilityPct !== null ? `${stats.emailsSent.deliverabilityPct.toFixed(1)}% deliverability` : "No emails sent yet"} icon={<Mail size={22} />} />
+    <Stat label={t.dashboardPage.countriesReached} value={String(stats.countriesReached.value)} note={`${stats.countriesReached.activeLast30Days} active in the last 30 days`} icon={<Globe2 size={22} />} />
+    <Stat label={t.dashboardPage.activeCampaigns} value={String(stats.activeCampaigns.value)} note={stats.activeCampaigns.value > 0 ? "Currently sending" : `${stats.activeCampaigns.completedLast30Days} completed in the last 30 days`} icon={<Zap size={22} />} />
+  </div><Card className="mt-8" title={t.dashboardPage.globalLeadDistribution} subtitle={t.dashboardPage.globalLeadDistributionSubtitle}><WorldMapMock /></Card><Card className="mt-8" title={t.dashboardPage.recentActivity}><DataTable rows={recentActivity} /></Card></Page>;
 }
 
 
-export function LeadDetailPage() { return <Page title="TransGlobal Logistics" subtitle="Rotterdam, Netherlands · Logistics & Supply Chain · transglobal.nl" actions={<><Button tone="light">Add Note</Button><Button>Save Lead</Button></>}><div className="grid grid-cols-[2fr_1fr] gap-8"><div className="space-y-8"><Card><div className="grid grid-cols-[180px_1fr] gap-8"><div className="grid h-40 place-items-center rounded border bg-[#f4f5f6]"><strong className="text-6xl">94</strong><small>AI Score</small></div><div><Pill tone="danger">High Priority</Pill><span className="ml-4 text-neutral-600">Last updated: 2 hours ago</span><p className="mt-5 text-lg">TransGlobal Logistics has shown a 45% increase in cross-border trade queries in the last 30 days. Their tech stack and revenue growth suggest high readiness.</p><div className="mt-6 grid grid-cols-2 gap-8"><Progress value={78}/><Progress value={61}/></div></div></div></Card><Card title="Company Profile"><div className="grid grid-cols-3 gap-8 text-3xl font-black"><div><small className="block font-mono text-xs text-neutral-500">Annual Revenue</small>$500M+</div><div><small className="block font-mono text-xs text-neutral-500">Employees</small>2,400</div><div><small className="block font-mono text-xs text-neutral-500">Founded</small>1998</div></div><div className="mt-8 flex gap-3"><Pill>SAP S/4HANA</Pill><Pill>AWS Cloud</Pill><Pill>Oracle DB</Pill><Pill>Salesforce</Pill></div></Card><Card title="Activity Timeline"><Timeline /></Card></div><div className="space-y-8"><Card className="bg-[#07172b] text-white" title="AI Predictive Insights"><Metric label="Buying Probability" value="88%" /><Metric label="Import Probability" value="92%" /><p className="mt-8 text-slate-200">Operations mirror Maersk and DHL Logistics hubs in Northern Europe.</p></Card><Card title="Verified Contacts"><Contact name="Marcus Hoffmann" role="Director of Global Trade" /><Contact name="Sophie van der Ley" role="Supply Chain Strategist" /><Button tone="light">Export All Contacts</Button></Card></div></div></Page> }
+export function LeadDetailPage() {
+  const { dictionary: t } = useLanguage();
+  return <Page title="TransGlobal Logistics" subtitle="Rotterdam, Netherlands · Logistics & Supply Chain · transglobal.nl" actions={<><Button tone="light">{t.leadDetailPage.addNote}</Button><Button>{t.leadDetailPage.saveLead}</Button></>}><div className="grid grid-cols-1 gap-8 lg:grid-cols-[2fr_1fr]"><div className="space-y-8"><Card><div className="grid grid-cols-1 gap-8 sm:grid-cols-[180px_1fr]"><div className="grid h-40 place-items-center rounded border bg-[#f4f5f6]"><strong className="text-6xl">94</strong><small>{t.leadDetailPage.aiScore}</small></div><div><Pill tone="danger">{t.leadDetailPage.highPriority}</Pill><span className="ml-4 text-neutral-600">{t.leadDetailPage.lastUpdated}</span><p className="mt-5 text-lg">{t.leadDetailPage.summary}</p><div className="mt-6 grid grid-cols-1 gap-8 sm:grid-cols-2"><Progress value={78}/><Progress value={61}/></div></div></div></Card><Card title={t.leadDetailPage.companyProfile}><div className="grid grid-cols-1 gap-8 text-3xl font-black sm:grid-cols-3"><div><small className="block font-mono text-xs text-neutral-500">{t.leadDetailPage.annualRevenue}</small>$500M+</div><div><small className="block font-mono text-xs text-neutral-500">{t.leadDetailPage.employees}</small>2,400</div><div><small className="block font-mono text-xs text-neutral-500">{t.leadDetailPage.founded}</small>1998</div></div><div className="mt-8 flex gap-3"><Pill>SAP S/4HANA</Pill><Pill>AWS Cloud</Pill><Pill>Oracle DB</Pill><Pill>Salesforce</Pill></div></Card><Card title={t.leadDetailPage.activityTimeline}><Timeline /></Card></div><div className="space-y-8"><Card className="bg-[#07172b] text-white" title={t.leadDetailPage.aiPredictiveInsights}><Metric label={t.leadDetailPage.buyingProbability} value="88%" /><Metric label={t.leadDetailPage.importProbability} value="92%" /><p className="mt-8 text-slate-200">{t.leadDetailPage.predictiveNote}</p></Card><Card title={t.leadDetailPage.verifiedContacts}><Contact name="Marcus Hoffmann" role="Director of Global Trade" /><Contact name="Sophie van der Ley" role="Supply Chain Strategist" /><Button tone="light">{t.leadDetailPage.exportAllContacts}</Button></Card></div></div></Page>;
+}
 function Metric({label,value}:{label:string;value:string}){return <div className="mt-5"><div className="flex justify-between"><span className="font-mono uppercase">{label}</span><strong className="text-3xl text-[#e7f600]">{value}</strong></div><Progress value={parseInt(value)} tone="acid" /></div>}
-function Contact({name,role}:{name:string;role:string}){return <div className="mb-4 rounded border p-4"><strong>{name}</strong><p className="text-neutral-600">{role}</p><Pill tone="acid">Direct Email Verified</Pill></div>}
-function Timeline(){return <div className="space-y-7">{["Email Sent: Proposal for EU Expansion","New Intent Signal: Website Visit","Outgoing Call: No Answer"].map((t,i)=><div className="flex gap-4" key={t}><span className="grid h-10 w-10 place-items-center rounded-full bg-[#eef4ff] dark:bg-[#3a3a3a] dark:text-neutral-200">{i+1}</span><p><strong>{t}</strong><small className="block text-neutral-500">AI automated tracking · Oct 24</small></p></div>)}</div>}
+function Contact({name,role}:{name:string;role:string}){
+  const { dictionary: t } = useLanguage();
+  return <div className="mb-4 rounded border p-4"><strong>{name}</strong><p className="text-neutral-600">{role}</p><Pill tone="acid">{t.leadDetailPage.directEmailVerified}</Pill></div>;
+}
+function Timeline(){
+  const { dictionary: t } = useLanguage();
+  return <div className="space-y-7">{["Email Sent: Proposal for EU Expansion","New Intent Signal: Website Visit","Outgoing Call: No Answer"].map((text,i)=><div className="flex gap-4" key={text}><span className="grid h-10 w-10 place-items-center rounded-full bg-[#eef4ff] dark:bg-[#3a3a3a] dark:text-neutral-200">{i+1}</span><p><strong>{text}</strong><small className="block text-neutral-500">{t.leadDetailPage.timelineTracking}</small></p></div>)}</div>;
+}
 
 export type VisitorStats = { visitorsToday: number; identifiedCompanies: number; countries: number; returnVisitors: number };
 export type VisitorRow = { organization: string | null; country: string | null; city: string | null; deviceType: string | null; lastVisit: string; visitCount: number };
 
-export function VisitorPage({ stats, visitors }: { stats: VisitorStats; visitors: VisitorRow[] }) { return <Page title="Visitor Intelligence" subtitle="Real-time identification and intent tracking of global business visitors." actions={<><Button tone="light">Export Data</Button><Button tone="acid">Smart Filter</Button></>}><div className="grid grid-cols-4 gap-8"><Stat label="Visitors Today" value={stats.visitorsToday.toLocaleString()} note="Last 24 hours" icon={<Users/>}/><Stat label="Identified Companies" value={String(stats.identifiedCompanies)} note="With known organization" icon={<Database/>}/><Stat label="Countries" value={String(stats.countries)} note="Global reach" icon={<Globe2/>}/><Stat label="Return Visitors" value={String(stats.returnVisitors)} note="Visited more than once" icon={<RefreshCw/>}/></div><div className="mt-8 grid grid-cols-[2fr_1fr] gap-8"><div><Card title="Visitor Activity Map"><WorldMapMock /></Card><Card className="mt-8" title="Visitor Journey Timeline"><div className="flex justify-around py-10 text-center"><Step icon={<Grid2X2/>} label="Home"/><Step icon={<Database/>} label="Pricing"/><Step icon={<Sparkles/>} label="API Docs" active/></div></Card></div><Card className="bg-[#07172b] text-white" title="AI Smart Recommendations">{["Nordic Flow Oy","TransGlobal Log","Maersk Regional"].map((n,i)=><div className="mb-5 rounded bg-white/10 p-5" key={n}><strong>{n}</strong><Pill tone={i===0?"danger":"acid"}>{i===0?"Contact Immediately":"High Intent"}</Pill><p className="mt-3 text-slate-200">High intent detected. Pricing page viewed repeatedly.</p></div>)}</Card></div><Card className="mt-8" title="Identified Companies"><VisitorTable rows={visitors} /></Card></Page> }
-
-function VisitorTable({ rows }: { rows: VisitorRow[] }) {
-  if (rows.length === 0) {
-    return <p className="text-neutral-500">No visitors identified yet. Embed your tracking script from Settings to start collecting data.</p>;
-  }
-  return <div className="overflow-hidden rounded border border-[#dfe2e7]"><table className="w-full text-left"><thead className="bg-[#f1eee8] font-mono text-sm uppercase tracking-[0.12em] text-neutral-600"><tr><th className="p-4">Company</th><th>Country</th><th>City</th><th>Device</th><th>Last Visit</th><th>Visits</th></tr></thead><tbody>{rows.map((row, i) => <tr className="border-t border-[#e5e5e5]" key={i}><td className="p-4"><strong>{row.organization ?? "Unknown"}</strong></td><td>{row.country ?? "—"}</td><td>{row.city ?? "—"}</td><td>{row.deviceType ?? "—"}</td><td>{formatLastVisit(row.lastVisit)}</td><td>{row.visitCount}</td></tr>)}</tbody></table></div>;
+export function VisitorPage({ stats, visitors, initialGeo }: { stats: VisitorStats; visitors: VisitorRow[]; initialGeo: GeoDistribution }) {
+  const { dictionary: t } = useLanguage();
+  return <Page title={t.visitorPage.title} subtitle={t.visitorPage.subtitle} actions={<><a href="/api/visitor-intelligence/export" className="inline-flex items-center gap-2 border border-[#d5d7dd] bg-white px-5 py-3 font-bold dark:border-[#3a3a3a] dark:bg-[#2e2e2e] dark:text-neutral-100"><Download size={18} /> {t.visitorPage.exportData}</a></>}><div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4"><Stat label={t.visitorPage.visitorsToday} value={stats.visitorsToday.toLocaleString()} note={t.visitorPage.last24Hours} icon={<Users/>}/><Stat label={t.visitorPage.identifiedCompanies} value={String(stats.identifiedCompanies)} note={t.visitorPage.withKnownOrg} icon={<Database/>}/><Stat label={t.visitorPage.countries} value={String(stats.countries)} note={t.visitorPage.globalReach} icon={<Globe2/>}/><Stat label={t.visitorPage.returnVisitors} value={String(stats.returnVisitors)} note={t.visitorPage.visitedMoreThanOnce} icon={<RefreshCw/>}/></div><Card className="mt-8"><GeographicDistribution initialData={initialGeo} /></Card><Card className="mt-8" title={t.visitorPage.identifiedCompanies}><VisitorTable rows={visitors} /></Card></Page>;
 }
 
-function formatLastVisit(isoDate: string): string {
+function VisitorTable({ rows }: { rows: VisitorRow[] }) {
+  const { dictionary: t } = useLanguage();
+  if (rows.length === 0) {
+    return <p className="text-neutral-500">{t.visitorPage.emptyState}</p>;
+  }
+  return <div className="overflow-x-auto rounded border border-[#dfe2e7]"><table className="w-full min-w-[720px] text-left"><thead className="bg-[#f1eee8] font-mono text-sm uppercase tracking-[0.12em] text-neutral-600"><tr><th className="p-4">{t.visitorPage.tableCompany}</th><th>{t.visitorPage.tableCountry}</th><th>{t.visitorPage.tableCity}</th><th>{t.visitorPage.tableDevice}</th><th>{t.visitorPage.tableLastVisit}</th><th>{t.visitorPage.tableVisits}</th></tr></thead><tbody>{rows.map((row, i) => <tr className="border-t border-[#e5e5e5]" key={i}><td className="p-4"><strong>{row.organization ?? t.common.unknown}</strong></td><td>{row.country ?? "—"}</td><td>{row.city ?? "—"}</td><td>{row.deviceType ?? "—"}</td><td>{formatLastVisit(row.lastVisit, t)}</td><td>{row.visitCount}</td></tr>)}</tbody></table></div>;
+}
+
+function formatLastVisit(isoDate: string, t: Dictionary): string {
   const date = new Date(isoDate);
   const now = new Date();
   const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
   const time = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  if (sameDay(date, now)) return `Today, ${time}`;
+  if (sameDay(date, now)) return `${t.visitorPage.today}, ${time}`;
   const yesterday = new Date(now);
   yesterday.setDate(now.getDate() - 1);
-  if (sameDay(date, yesterday)) return `Yesterday, ${time}`;
+  if (sameDay(date, yesterday)) return `${t.visitorPage.yesterday}, ${time}`;
   return `${date.toLocaleDateString()}, ${time}`;
 }
-function Step({icon,label,active}:{icon:React.ReactNode;label:string;active?:boolean}){return <div><span className={cx("mx-auto grid h-16 w-16 place-items-center rounded-xl border-2 dark:border-[#3a3a3a]",active&&"bg-[#e7f600] text-black")}>{icon}</span><strong className="mt-3 block">{label}</strong><small>09:{active?"51":"42"} AM</small></div>}
+
+export function TradeDatabasesPage() {
+  const { dictionary: t } = useLanguage();
+  const { title, subtitle } = t.simplePages.trade;
+  return (
+    <Page title={title} subtitle={subtitle}>
+      <Card>
+        <div className="flex flex-col items-center py-10 text-center">
+          <span className="grid h-14 w-14 place-items-center rounded-full bg-[#f2f1ef] dark:bg-[#3a3a3a]">
+            <Database className="text-neutral-500 dark:text-neutral-300" size={26} />
+          </span>
+          <h3 className="mt-6 text-2xl font-black dark:text-white">{t.tradeDatabasesBody.comingSoon}</h3>
+          <p className="mt-3 max-w-md text-neutral-600 dark:text-neutral-400">
+            {t.tradeDatabasesBody.comingSoonText}
+          </p>
+        </div>
+      </Card>
+    </Page>
+  );
+}
 
 export function SimplePage({ kind }: { kind: "image"|"trade"|"contact"|"email"|"templates"|"builder"|"sequences"|"reports"|"admin"|"settings" }) {
-  const map = { image: ["Image Search", "Find visual matches, product photos, and supplier signals from product images."], trade: ["Trade Databases", "Browse verified import/export datasets and customs intelligence."], contact: ["Contact Finder", "Discover verified decision makers and direct outreach channels."], email: ["Email Campaigns", "Create, launch, and measure export sales campaigns."], templates: ["Template Gallery", "Reusable outreach templates by region and industry."], builder: ["Campaign Builder", "Build a personalized campaign for selected leads."], sequences: ["Sequences", "Automated follow-up flows for export prospecting."], reports: ["Reports", "Export performance, lead quality, and campaign analytics."], admin: ["Admin", "User management, activity controls, and account governance."], settings: ["Settings", "Workspace preferences, integrations, security, and profile."] } as const;
-  const [title, subtitle] = map[kind];
-  return <Page title={title} subtitle={subtitle} actions={<Button>{kind === "reports" ? "Export PDF" : "New"}</Button>}><div className="grid grid-cols-3 gap-8"><Card title="Overview"><p className="text-lg leading-8 text-neutral-600">This screen follows the same GlobalExport AI system: sharp cards, monospace labels, black primary actions, and acid yellow AI states.</p><div className="mt-8 grid gap-4"><Progress value={72} tone="acid"/><Progress value={54}/><Progress value={31} tone="danger"/></div></Card><Card title="Priority Queue"><DataTable rows={[["TransGlobal Logistics","High fit account","Germany","Verified","94"],["Nordic Flow Oy","Intent spike","Finland","Email","88"],["Apex Precision","New market match","UK","Maps","81"]]} /></Card><Card title="AI Assistant"><Sparkles className="mb-4 text-[#d8e400]" size={36}/><h3 className="text-2xl font-black">Recommended next action</h3><p className="mt-3 text-neutral-600">Prioritize companies with recent buyer intent and matching HS-code demand.</p><Button tone="acid">Apply Recommendation</Button></Card></div></Page>;
+  const { dictionary: t } = useLanguage();
+  const { title, subtitle } = t.simplePages[kind];
+  const mockQueue: [string, string, string, string, string][] = [
+    ["TransGlobal Logistics", "High fit account", "Germany", "Verified", "94"],
+    ["Nordic Flow Oy", "Intent spike", "Finland", "Email", "88"],
+    ["Apex Precision", "New market match", "UK", "Maps", "81"],
+  ];
+  return <Page title={title} subtitle={subtitle} actions={<Button>{kind === "reports" ? t.simplePageBody.exportPdf : t.simplePageBody.newButton}</Button>}><div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3"><Card title={t.simplePageBody.overview}><p className="text-lg leading-8 text-neutral-600">{t.simplePageBody.overviewText}</p><div className="mt-8 grid gap-4"><Progress value={72} tone="acid"/><Progress value={54}/><Progress value={31} tone="danger"/></div></Card><Card title={t.simplePageBody.priorityQueue}><div className="overflow-x-auto rounded border border-[#dfe2e7]"><table className="w-full min-w-[560px] text-left"><thead className="bg-[#f1eee8] font-mono text-sm uppercase tracking-[0.12em] text-neutral-600"><tr><th className="p-4">{t.simplePageBody.tableCompany}</th><th>{t.simplePageBody.tableSignal}</th><th>{t.simplePageBody.tableCountry}</th><th>{t.simplePageBody.tableChannel}</th><th>{t.simplePageBody.tableScore}</th></tr></thead><tbody>{mockQueue.map((row) => <tr className="border-t border-[#e5e5e5]" key={row[0]}><td className="p-4"><strong>{row[0]}</strong></td><td>{row[1]}</td><td>{row[2]}</td><td><Pill>{row[3]}</Pill></td><td>{row[4]}</td></tr>)}</tbody></table></div></Card><Card title={t.simplePageBody.aiAssistant}><Sparkles className="mb-4 text-[#d8e400]" size={36}/><h3 className="text-2xl font-black">{t.simplePageBody.recommendedAction}</h3><p className="mt-3 text-neutral-600">{t.simplePageBody.recommendedActionText}</p><Button tone="acid">{t.simplePageBody.applyRecommendation}</Button></Card></div></Page>;
 }

@@ -1,15 +1,25 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, UploadCloud, X } from "lucide-react";
 
 import { startSearchJob } from "@/app/actions/leadfinder";
 import { Card, Field } from "@/components/dashboard/DashboardScreens";
 import { SUPPORTED_COUNTRIES } from "@/lib/leadfinder/countries";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
 
 const ALL_COUNTRIES_SORTED = [...SUPPORTED_COUNTRIES].sort((a, b) => a.name.localeCompare(b.name));
 
+export type SavedProductOption = {
+  id: string;
+  name: string;
+  englishName: string | null;
+  hsCode: string | null;
+  hasImage: boolean;
+};
+
 function CountryDropdown({ selected, onToggle }: { selected: Set<string>; onToggle: (code: string) => void }) {
+  const { dictionary: t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
@@ -32,13 +42,20 @@ function CountryDropdown({ selected, onToggle }: { selected: Set<string>; onTogg
   const selectedCountry = ALL_COUNTRIES_SORTED.find((c) => selected.has(c.code));
   const summary =
     selected.size === 0
-      ? "Select countries"
+      ? t.leadFinderForm.selectCountries
       : selected.size === 1
-        ? (selectedCountry ? `${selectedCountry.name} (${selectedCountry.code})` : "1 country selected")
-        : `${selected.size} countries selected`;
+        ? (selectedCountry ? `${selectedCountry.name} (${selectedCountry.code})` : t.leadFinderForm.countrySelected)
+        : t.leadFinderForm.countriesSelected.replace("{count}", String(selected.size));
 
   return (
     <div ref={containerRef} className="relative">
+      {/* Always-mounted, independent of dropdown open/closed state — the checkboxes
+          inside the dropdown panel below are unmounted on close, so they can't be
+          relied on to carry form data at submit time. */}
+      {Array.from(selected).map((code) => (
+        <input key={code} type="hidden" name="countries" value={code} />
+      ))}
+
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -55,14 +72,14 @@ function CountryDropdown({ selected, onToggle }: { selected: Set<string>; onTogg
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search countries..."
+              placeholder={t.leadFinderForm.searchCountriesPlaceholder}
               autoFocus
               className="w-full rounded border border-[#d5d7dd] px-3 py-2 text-sm outline-none focus:border-black dark:border-[#3a3a3a] dark:bg-[#2e2e2e] dark:text-neutral-100"
             />
           </div>
           <div className="max-h-72 overflow-y-auto p-2">
             {filtered.length === 0 ? (
-              <p className="p-3 text-sm text-neutral-500 dark:text-neutral-400">No countries match.</p>
+              <p className="p-3 text-sm text-neutral-500 dark:text-neutral-400">{t.leadFinderForm.noCountriesMatch}</p>
             ) : (
               filtered.map((country) => (
                 <label
@@ -71,8 +88,6 @@ function CountryDropdown({ selected, onToggle }: { selected: Set<string>; onTogg
                 >
                   <input
                     type="checkbox"
-                    name="countries"
-                    value={country.code}
                     checked={selected.has(country.code)}
                     onChange={() => onToggle(country.code)}
                   />
@@ -87,14 +102,29 @@ function CountryDropdown({ selected, onToggle }: { selected: Set<string>; onTogg
   );
 }
 
-export default function LeadFinderForm() {
+export default function LeadFinderForm({ products }: { products: SavedProductOption[] }) {
+  const { dictionary: t } = useLanguage();
   const [state, action, pending] = useActionState(startSearchJob, undefined);
   const [imageDescription, setImageDescription] = useState<string | null>(null);
+  const [imageIdentification, setImageIdentification] = useState<{
+    product: string;
+    category: string;
+    partNumber: string | null;
+    brand: string | null;
+  } | null>(null);
   const [imageStatus, setImageStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [imageFileName, setImageFileName] = useState<string | null>(null);
+  const [productName, setProductName] = useState("");
+  const [hsCode, setHsCode] = useState("");
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [savedProductImage, setSavedProductImage] = useState<string | null>(null);
   const [selectedCountries, setSelectedCountries] = useState<Set<string>>(new Set());
   const [selectedEngines, setSelectedEngines] = useState<Set<string>>(new Set(["google"]));
   const [competitorBrands, setCompetitorBrands] = useState<string[]>([]);
   const [competitorInput, setCompetitorInput] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [potentialCustomerWebsites, setPotentialCustomerWebsites] = useState<string[]>([]);
+  const [potentialCustomerWebsiteInput, setPotentialCustomerWebsiteInput] = useState("");
   const [suggestedIndustries, setSuggestedIndustries] = useState<string[]>([]);
   const [selectedIndustries, setSelectedIndustries] = useState<Set<string>>(new Set());
   const [industriesStatus, setIndustriesStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
@@ -139,6 +169,18 @@ export default function LeadFinderForm() {
     setCompetitorBrands((prev) => prev.filter((b) => b !== brand));
   }
 
+  function addPotentialCustomerWebsite() {
+    const trimmed = potentialCustomerWebsiteInput.trim();
+    if (trimmed && !potentialCustomerWebsites.includes(trimmed)) {
+      setPotentialCustomerWebsites((prev) => [...prev, trimmed]);
+    }
+    setPotentialCustomerWebsiteInput("");
+  }
+
+  function removePotentialCustomerWebsite(site: string) {
+    setPotentialCustomerWebsites((prev) => prev.filter((s) => s !== site));
+  }
+
   async function suggestIndustries() {
     const fd = new FormData(formRef.current ?? undefined);
     const productName = fd.get("productName")?.toString().trim();
@@ -168,12 +210,37 @@ export default function LeadFinderForm() {
     }
   }
 
-  async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  function handleSelectProduct(productId: string) {
+    setSelectedProductId(productId);
 
+    if (!productId) {
+      return;
+    }
+
+    const product = products.find((p) => p.id === productId);
+    if (!product) return;
+
+    setProductName(product.englishName || product.name);
+    setHsCode(product.hsCode ?? "");
+    setImageFileName(null);
+    setImageStatus("idle");
+    setImageIdentification(null);
+
+    if (product.hasImage) {
+      setSavedProductImage(`/api/products/${product.id}/image`);
+      setImageDescription(product.englishName || product.name);
+    } else {
+      setSavedProductImage(null);
+      setImageDescription(null);
+    }
+  }
+
+  async function processImage(file: File) {
+    setSavedProductImage(null);
+    setImageFileName(file.name);
     setImageStatus("loading");
     setImageDescription(null);
+    setImageIdentification(null);
 
     try {
       const formData = new FormData();
@@ -188,52 +255,142 @@ export default function LeadFinderForm() {
 
       const data = await response.json();
       setImageDescription(data.description ?? null);
+      setImageIdentification(data.identification ?? null);
       setImageStatus("done");
     } catch {
       setImageStatus("error");
     }
   }
 
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processImage(file);
+  }
+
+  function handleImageDrop(e: React.DragEvent<HTMLLabelElement>) {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    processImage(file);
+  }
+
   return (
-    <form ref={formRef} action={action} className="grid grid-cols-[2fr_1fr] gap-8">
+    <form ref={formRef} action={action} className="grid grid-cols-1 gap-8 lg:grid-cols-[2fr_1fr]">
       <Card>
         <div className="mb-8 border-b pb-4 font-mono uppercase tracking-[0.12em]">
-          <strong className="border-b-2 border-black pb-3">Define Your Product</strong>
+          <strong className="border-b-2 border-black pb-3">{t.leadFinderForm.defineYourProduct}</strong>
         </div>
 
-        <Field label="Product Name" name="productName" placeholder="e.g. Brake Pad" />
+        {products.length > 0 && (
+          <label className="mb-8 block">
+            <span className="mb-2 block font-mono text-sm uppercase tracking-[0.12em]">{t.leadFinderForm.savedProduct}</span>
+            <select
+              value={selectedProductId}
+              onChange={(e) => handleSelectProduct(e.target.value)}
+              className="h-14 w-full border border-[#d5d7dd] bg-white px-5 text-lg outline-none dark:border-[#3a3a3a] dark:bg-[#2e2e2e] dark:text-neutral-100"
+            >
+              <option value="">{t.leadFinderForm.customNewProduct}</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.englishName || product.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+
+        <Field
+          label={t.leadFinderForm.productName}
+          name="productName"
+          placeholder={t.leadFinderForm.productNamePlaceholder}
+          value={productName}
+          onChange={(e) => setProductName(e.target.value)}
+        />
         {state?.errors?.productName && (
           <p className="mt-2 text-sm text-red-600 dark:text-red-400">{state.errors.productName[0]}</p>
         )}
 
-        <div className="mt-8 grid grid-cols-2 gap-8">
-          <Field label="OEM Number / Serial" name="oemNumber" placeholder="e.g. 04465-0K240" />
-          <Field label="HS Code (6-12 digits)" name="hsCode" placeholder="e.g. 870830" />
+        <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2">
+          <Field label={t.leadFinderForm.oemNumber} name="oemNumber" placeholder={t.leadFinderForm.oemNumberPlaceholder} />
+          <Field
+            label={t.leadFinderForm.hsCode}
+            name="hsCode"
+            placeholder={t.leadFinderForm.hsCodePlaceholder}
+            value={hsCode}
+            onChange={(e) => setHsCode(e.target.value)}
+          />
+        </div>
+
+        <div className="mt-8">
+          <Field
+            label={t.leadFinderForm.targetIndustry}
+            name="industry"
+            placeholder={t.leadFinderForm.targetIndustryPlaceholder}
+            value={industry}
+            onChange={(e) => setIndustry(e.target.value)}
+          />
         </div>
 
         <div className="mt-8">
           <label className="mb-2 block font-mono text-sm uppercase tracking-[0.12em]">
-            Product Image (optional)
+            {t.leadFinderForm.productImage}
           </label>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={handleImageChange}
-            className="text-sm text-neutral-600 file:mr-4 file:cursor-pointer file:rounded-md file:border-0 file:bg-[#041B3A] file:px-5 file:py-2.5 file:font-bold file:text-white file:transition hover:file:bg-[#072955] dark:text-neutral-400"
-          />
+          {savedProductImage ? (
+            <div className="flex items-center gap-4 rounded-2xl border-2 border-dashed border-[#c9caf0] bg-[#f7f7fd] p-4 dark:border-[#3a3a5a] dark:bg-[#232336]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={savedProductImage} alt="Saved product" className="h-16 w-16 rounded object-cover" />
+              <div className="min-w-0 flex-1">
+                <p className="font-bold text-[#6a5cf5]">{t.leadFinderForm.usingSavedImage}</p>
+                <label htmlFor="productImage" className="cursor-pointer text-sm text-neutral-500 underline dark:text-neutral-400">
+                  {t.leadFinderForm.uploadDifferentImage}
+                </label>
+              </div>
+              <input id="productImage" type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
+            </div>
+          ) : (
+            <label
+              htmlFor="productImage"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleImageDrop}
+              className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-[#c9caf0] bg-[#f7f7fd] px-6 py-10 text-center transition hover:border-[#6a5cf5] dark:border-[#3a3a5a] dark:bg-[#232336]"
+            >
+              <UploadCloud className="h-9 w-9 text-[#6a5cf5]" />
+              <span className="font-bold text-[#6a5cf5]">{imageFileName ?? t.leadFinderForm.importYourImage}</span>
+              <span className="text-sm text-neutral-500 dark:text-neutral-400">{t.leadFinderForm.dragOrClickToUpload}</span>
+              <input
+                id="productImage"
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+                className="hidden"
+              />
+            </label>
+          )}
           <input type="hidden" name="imageDescription" value={imageDescription ?? ""} />
-          {imageStatus === "loading" && <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">Identifying image…</p>}
-          {imageStatus === "done" && imageDescription && (
-            <p className="mt-2 text-sm text-[#5b6300] dark:text-[#c7d400]">AI identified: {imageDescription}</p>
+          {imageStatus === "loading" && <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">{t.leadFinderForm.identifyingImage}</p>}
+          {imageStatus === "done" && imageIdentification && (
+            <div className="mt-2 rounded-lg bg-[#f7f8e8] p-4 text-sm dark:bg-[#2a2c1a]">
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-[#5b6300] dark:text-[#c7d400]">
+                <dt className="font-mono text-xs uppercase tracking-[0.08em] opacity-70">{t.leadFinderForm.detectedProduct}:</dt>
+                <dd>{imageIdentification.product}</dd>
+                <dt className="font-mono text-xs uppercase tracking-[0.08em] opacity-70">{t.leadFinderForm.category}:</dt>
+                <dd>{imageIdentification.category}</dd>
+                <dt className="font-mono text-xs uppercase tracking-[0.08em] opacity-70">{t.leadFinderForm.partNumber}:</dt>
+                <dd>{imageIdentification.partNumber ?? t.leadFinderForm.notDetected}</dd>
+                <dt className="font-mono text-xs uppercase tracking-[0.08em] opacity-70">{t.leadFinderForm.brand}:</dt>
+                <dd>{imageIdentification.brand ?? t.leadFinderForm.notDetected}</dd>
+              </dl>
+            </div>
           )}
           {imageStatus === "error" && (
-            <p className="mt-2 text-sm text-red-600 dark:text-red-400">Couldn&apos;t analyze that image, continuing without it.</p>
+            <p className="mt-2 text-sm text-red-600 dark:text-red-400">{t.leadFinderForm.imageAnalyzeError}</p>
           )}
         </div>
 
         <div className="mt-8">
           <label className="mb-2 block font-mono text-sm uppercase tracking-[0.12em]">
-            Competitor Brands (optional)
+            {t.leadFinderForm.competitorBrands}
           </label>
           <div className="flex gap-2">
             <input
@@ -246,7 +403,7 @@ export default function LeadFinderForm() {
                   addCompetitor();
                 }
               }}
-              placeholder="e.g. Bosch"
+              placeholder={t.leadFinderForm.competitorBrandsPlaceholder}
               className="flex-1 rounded border border-[#d5d7dd] p-3 text-sm outline-none focus:border-black dark:border-[#3a3a3a] dark:bg-[#2e2e2e] dark:text-neutral-100"
             />
             <button
@@ -265,7 +422,7 @@ export default function LeadFinderForm() {
                   className="inline-flex items-center gap-2 rounded-full bg-[#f1eee8] px-3 py-1 text-sm dark:bg-[#3a3a3a] dark:text-neutral-200"
                 >
                   {brand}
-                  <button type="button" onClick={() => removeCompetitor(brand)} aria-label={`Remove ${brand}`}>
+                  <button type="button" onClick={() => removeCompetitor(brand)} aria-label={t.leadFinderForm.removeBrand.replace("{brand}", brand)}>
                     <X className="h-3.5 w-3.5 text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white" />
                   </button>
                   <input type="hidden" name="competitorBrands" value={brand} />
@@ -276,19 +433,67 @@ export default function LeadFinderForm() {
         </div>
 
         <div className="mt-8">
+          <label className="mb-2 block font-mono text-sm uppercase tracking-[0.12em]">
+            {t.leadFinderForm.potentialCustomerWebsites}
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={potentialCustomerWebsiteInput}
+              onChange={(e) => setPotentialCustomerWebsiteInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addPotentialCustomerWebsite();
+                }
+              }}
+              placeholder={t.leadFinderForm.potentialCustomerWebsitesPlaceholder}
+              className="flex-1 rounded border border-[#d5d7dd] p-3 text-sm outline-none focus:border-black dark:border-[#3a3a3a] dark:bg-[#2e2e2e] dark:text-neutral-100"
+            />
+            <button
+              type="button"
+              onClick={addPotentialCustomerWebsite}
+              className="rounded bg-[#041B3A] px-5 font-bold text-white transition hover:bg-[#072955]"
+            >
+              +
+            </button>
+          </div>
+          {potentialCustomerWebsites.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {potentialCustomerWebsites.map((site) => (
+                <span
+                  key={site}
+                  className="inline-flex items-center gap-2 rounded-full bg-[#f1eee8] px-3 py-1 text-sm dark:bg-[#3a3a3a] dark:text-neutral-200"
+                >
+                  {site}
+                  <button
+                    type="button"
+                    onClick={() => removePotentialCustomerWebsite(site)}
+                    aria-label={t.leadFinderForm.removePotentialCustomerWebsite.replace("{site}", site)}
+                  >
+                    <X className="h-3.5 w-3.5 text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white" />
+                  </button>
+                  <input type="hidden" name="potentialCustomerWebsites" value={site} />
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-8">
           <div className="flex items-center justify-between">
-            <label className="font-mono text-sm uppercase tracking-[0.12em]">Related Industries (optional)</label>
+            <label className="font-mono text-sm uppercase tracking-[0.12em]">{t.leadFinderForm.relatedIndustries}</label>
             <button
               type="button"
               onClick={suggestIndustries}
               disabled={industriesStatus === "loading"}
               className="text-sm font-bold text-[#041B3A] underline disabled:opacity-50 dark:text-[#7fa8ff]"
             >
-              {industriesStatus === "loading" ? "Thinking…" : "Suggest with AI"}
+              {industriesStatus === "loading" ? t.leadFinderForm.thinking : t.leadFinderForm.suggestWithAi}
             </button>
           </div>
           {industriesStatus === "error" && (
-            <p className="mt-2 text-sm text-red-600 dark:text-red-400">Couldn&apos;t generate suggestions, try again.</p>
+            <p className="mt-2 text-sm text-red-600 dark:text-red-400">{t.leadFinderForm.suggestError}</p>
           )}
           {suggestedIndustries.length > 0 && (
             <div className="mt-3 space-y-2 rounded border border-[#dfe2e7] p-4 dark:border-[#3a3a3a]">
@@ -311,9 +516,9 @@ export default function LeadFinderForm() {
         <div className="mt-8">
           <details className="rounded border border-[#dfe2e7] dark:border-[#3a3a3a]">
             <summary className="cursor-pointer select-none px-4 py-3 font-mono text-sm uppercase tracking-[0.12em] hover:bg-neutral-50 dark:hover:bg-[#2e2e2e]">
-              Search Engine{" "}
+              {t.leadFinderForm.searchEngine}{" "}
               <span className="ml-1 normal-case tracking-normal text-neutral-500 dark:text-neutral-400">
-                ({selectedEngines.size > 0 ? `${selectedEngines.size} selected` : "none selected"})
+                ({selectedEngines.size > 0 ? t.leadFinderForm.selectedCount.replace("{count}", String(selectedEngines.size)) : t.leadFinderForm.noneSelected})
               </span>
             </summary>
             <div className="space-y-2 border-t border-[#ececec] p-4 dark:border-[#3a3a3a]">
@@ -325,7 +530,7 @@ export default function LeadFinderForm() {
                   checked={selectedEngines.has("google")}
                   onChange={() => toggleEngine("google")}
                 />
-                Google
+                {t.leadFinderForm.google}
               </label>
               <label className="flex items-center gap-2 text-sm dark:text-neutral-200">
                 <input
@@ -335,7 +540,7 @@ export default function LeadFinderForm() {
                   checked={selectedEngines.has("bing")}
                   onChange={() => toggleEngine("bing")}
                 />
-                Bing
+                {t.leadFinderForm.bing}
               </label>
               <label className="flex items-center gap-2 text-sm dark:text-neutral-200">
                 <input
@@ -345,7 +550,7 @@ export default function LeadFinderForm() {
                   checked={selectedEngines.has("yandex")}
                   onChange={() => toggleEngine("yandex")}
                 />
-                Yandex
+                {t.leadFinderForm.yandex}
               </label>
             </div>
           </details>
@@ -362,12 +567,12 @@ export default function LeadFinderForm() {
             disabled={pending}
             className="inline-flex items-center gap-3 bg-black px-12 py-5 text-xl font-black text-white disabled:opacity-60 dark:bg-neutral-100 dark:text-black"
           >
-            {pending ? "Starting…" : "Start Search →"}
+            {pending ? t.leadFinderForm.starting : t.leadFinderForm.startSearch}
           </button>
         </div>
       </Card>
 
-      <Card title="Target Countries">
+      <Card title={t.leadFinderForm.targetCountries}>
         {state?.errors?.countries && selectedCountries.size === 0 && (
           <p className="mb-4 text-sm text-red-600 dark:text-red-400">{state.errors.countries[0]}</p>
         )}

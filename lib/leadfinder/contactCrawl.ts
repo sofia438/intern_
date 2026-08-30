@@ -85,13 +85,7 @@ function collectEmailsFromJson(value: unknown, out: Set<string>): void {
   }
 }
 
-// cheerio's plain `.text()` concatenates every descendant text node with NO
-// separator, so visually-adjacent-but-unrelated fragments (a phone number
-// right before an email, a nav link butting up against a heading) fuse into
-// one string — e.g. "+8613902449019info@company.com" or
-// "LoginContactsinfo@company.com". Walking text nodes individually and
-// joining with an explicit space avoids that, instead of chasing every
-// possible concatenation pattern with regex patches.
+
 function getSpacedText($: cheerio.CheerioAPI, root: string): string {
   const parts: string[] = [];
   $(root)
@@ -107,10 +101,7 @@ function getSpacedText($: cheerio.CheerioAPI, root: string): string {
   return parts.join(" ");
 }
 
-// Extra safety net: a phone number and email can still end up in the same
-// text node in rare cases (e.g. "Tel: +86...  info@x.com" with just a
-// space) — strip a leading digit run immediately followed by a letter,
-// since real email local-parts never start that way.
+
 function cleanEmailMatch(raw: string): string {
   return raw.replace(/^\+?\d{5,}(?=[a-zA-Z])/, "");
 }
@@ -134,7 +125,7 @@ export function extractEmailsFromPage(html: string): string[] {
       try {
         collectEmailsFromJson(JSON.parse($(el).text()), emails);
       } catch {
-        // ignore malformed JSON-LD
+        
       }
     });
 
@@ -164,10 +155,7 @@ const TIER_PATTERNS: { pattern: RegExp; tier: Tier }[] = [
 
 const TIER_CONFIDENCE: Record<Tier, number> = { 1: 95, 2: 80, 3: 55, 4: 25 };
 
-// Deterministic, no AI: scores an email by its local-part against the spec's
-// priority tiers. Anything unrecognized (e.g. "john@") defaults to tier 3
-// rather than the lowest tier — it might be a real named person's address,
-// which the spec itself treats as more valuable than a generic mailbox.
+
 export function rankEmail(email: string, hasName: boolean): { tier: Tier; confidence: number } {
   const local = email.split("@")[0] ?? "";
   let tier: Tier = 3;

@@ -52,13 +52,39 @@ export async function scrapeWebsite(url: string): Promise<ScrapedContact> {
       phone = match ? match[0].trim() : null;
     }
 
-    // Address extraction is best-effort and often unavailable without
-    // structured data — only trust explicit schema.org microdata.
+    
     const address = $('[itemprop="address"]').first().text().trim() || null;
 
     return { companyName, email, phone, address };
   } catch {
     return { companyName: null, email: null, phone: null, address: null };
+  }
+}
+
+export async function scrapePageText(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(8000),
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (compatible; GlobalExpoBot/1.0; +https://globalexpo.example/bot)",
+      },
+    });
+
+    if (!response.ok) return null;
+
+    const html = await response.text();
+    const $ = cheerio.load(html);
+    $("script, style, noscript").remove();
+
+    const title = $("title").text().trim();
+    const metaDescription = $('meta[name="description"]').attr("content")?.trim() || "";
+    const bodyText = $("body").text().replace(/\s+/g, " ").trim();
+
+    const combined = [title, metaDescription, bodyText].filter(Boolean).join("\n");
+    return combined.length > 0 ? combined.slice(0, 4000) : null;
+  } catch {
+    return null;
   }
 }
 

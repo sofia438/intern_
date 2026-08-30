@@ -19,11 +19,11 @@ CREATE TABLE "WebsiteVisitor" (
     CONSTRAINT "WebsiteVisitor_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
+
 CREATE INDEX "WebsiteVisitor_companyId_lastVisit_idx" ON "WebsiteVisitor"("companyId", "lastVisit");
 
--- CreateIndex
+
 CREATE UNIQUE INDEX "WebsiteVisitor_companyId_visitorCookie_key" ON "WebsiteVisitor"("companyId", "visitorCookie");
 
--- AddForeignKey
+
 ALTER TABLE "WebsiteVisitor" ADD CONSTRAINT "WebsiteVisitor_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

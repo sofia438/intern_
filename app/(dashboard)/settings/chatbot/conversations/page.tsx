@@ -1,11 +1,14 @@
 import Link from "next/link";
 
 import { Card, Pill } from "@/components/dashboard/DashboardScreens";
-import { verifySession } from "@/lib/dal";
+import { verifySession, getUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
+import { getDictionaryForUser } from "@/lib/i18n/dictionaries";
 
 export default async function Page() {
   const session = await verifySession();
+  const user = await getUser();
+  const t = getDictionaryForUser(user?.language);
 
   const conversations = await prisma.conversation.findMany({
     where: { companyId: session.companyId },
@@ -17,13 +20,13 @@ export default async function Page() {
   return (
     <main className="p-8">
       <div className="mb-8">
-        <h1 className="text-5xl font-black tracking-tight">Chatbot Conversations</h1>
-        <p className="mt-2 text-xl text-neutral-600">Every conversation the AI chatbot has had with your website visitors.</p>
+        <h1 className="text-5xl font-black tracking-tight">{t.chatbotConversationsPage.title}</h1>
+        <p className="mt-2 text-xl text-neutral-600">{t.chatbotConversationsPage.subtitle}</p>
       </div>
 
       <Card>
         {conversations.length === 0 ? (
-          <p className="text-neutral-500">No conversations yet. Once your chatbot is enabled and embedded, conversations will show up here.</p>
+          <p className="text-neutral-500">{t.chatbotConversationsPage.emptyState}</p>
         ) : (
           <div className="divide-y divide-[#e5e5e5]">
             {conversations.map((c) => (
@@ -33,14 +36,14 @@ export default async function Page() {
                 className="flex items-center justify-between py-4 hover:bg-neutral-50"
               >
                 <div>
-                  <strong className="text-lg">Visitor {c.visitorId.slice(0, 8)}</strong>
+                  <strong className="text-lg">{t.chatbotConversationsPage.visitorLabel.replace("{id}", c.visitorId.slice(0, 8))}</strong>
                   <small className="block text-neutral-500">
-                    Started {c.startedAt.toLocaleString()} · Last active {c.lastActiveAt.toLocaleString()}
+                    {t.chatbotConversationsPage.startedLastActive.replace("{started}", c.startedAt.toLocaleString()).replace("{lastActive}", c.lastActiveAt.toLocaleString())}
                   </small>
                 </div>
                 <div className="flex items-center gap-4">
-                  {c.lead && <Pill tone="acid">Lead captured</Pill>}
-                  <span>{c._count.messages} messages</span>
+                  {c.lead && <Pill tone="acid">{t.chatbotConversationsPage.leadCaptured}</Pill>}
+                  <span>{t.chatbotConversationsPage.messagesCount.replace("{count}", String(c._count.messages))}</span>
                 </div>
               </Link>
             ))}

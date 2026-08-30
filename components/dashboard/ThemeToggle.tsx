@@ -22,8 +22,7 @@ export default function ThemeToggle() {
     applyTheme(next);
   }
 
-  // Render nothing until mounted so this never disagrees with the anti-flash
-  // inline script's own class decision made before hydration.
+  
   if (!theme) {
     return <div className="h-9 w-[68px]" aria-hidden />;
   }

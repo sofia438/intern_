@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 import { Filter, Search, X } from "lucide-react";
 
+import { Pill } from "@/components/dashboard/DashboardScreens";
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
+
 type ResultRow = {
   id: string;
   companyName: string | null;
@@ -11,12 +15,16 @@ type ResultRow = {
   email: string | null;
   phone: string | null;
   confidenceScore: number | null;
+  websiteType: string | null;
+  matchReason: string | null;
   contactName: string | null;
   contactTitle: string | null;
   contactEmail: string | null;
   contactConfidence: number | null;
   contactSourcePage: string | null;
 };
+
+type WebsiteTypeFilter = "all" | "Company Website" | "E-commerce";
 
 const FREE_EMAIL_DOMAINS = new Set([
   "gmail.com",
@@ -46,21 +54,23 @@ type ActiveFilter =
   | { type: "hasWebsite"; value: "yes" | "no" }
   | { type: "hasContact"; value: "yes" | "no" };
 
-const FILTER_LABELS: Record<FilterType, string> = {
-  country: "Country",
-  hasEmail: "Has Email",
-  emailType: "Email Type",
-  hasPhone: "Has Phone",
-  hasWebsite: "Has Website",
-  hasContact: "Has Contact",
-};
+function filterLabels(t: Dictionary): Record<FilterType, string> {
+  return {
+    country: t.leadFinderResults.filterCountry,
+    hasEmail: t.leadFinderResults.filterHasEmail,
+    emailType: t.leadFinderResults.filterEmailType,
+    hasPhone: t.leadFinderResults.filterHasPhone,
+    hasWebsite: t.leadFinderResults.filterHasWebsite,
+    hasContact: t.leadFinderResults.filterHasContact,
+  };
+}
 
 const ALL_FILTER_TYPES: FilterType[] = ["country", "hasEmail", "emailType", "hasPhone", "hasWebsite", "hasContact"];
 
-function filterLabel(filter: ActiveFilter): string {
+function filterLabel(filter: ActiveFilter, t: Dictionary): string {
   if (filter.type === "country") return filter.value;
-  if (filter.type === "emailType") return filter.value === "company" ? "Company Email Only" : "Personal Email";
-  return filter.value === "yes" ? "Yes" : "No";
+  if (filter.type === "emailType") return filter.value === "company" ? t.leadFinderResults.companyEmailOnly : t.leadFinderResults.personalEmail;
+  return filter.value === "yes" ? t.common.yes : t.common.no;
 }
 
 export default function LeadFinderResultsTable({
@@ -72,11 +82,14 @@ export default function LeadFinderResultsTable({
   results: ResultRow[];
   canExport: boolean;
 }) {
+  const { dictionary: t } = useLanguage();
+  const FILTER_LABELS = filterLabels(t);
   const [search, setSearch] = useState("");
   const [panelOpen, setPanelOpen] = useState(false);
   const [appliedFilters, setAppliedFilters] = useState<ActiveFilter[]>([]);
   const [draftFilters, setDraftFilters] = useState<ActiveFilter[]>([]);
   const [pickerType, setPickerType] = useState<FilterType | null>(null);
+  const [websiteTypeFilter, setWebsiteTypeFilter] = useState<WebsiteTypeFilter>("all");
 
   const countries = useMemo(
     () => Array.from(new Set(results.map((r) => r.country).filter((c): c is string => !!c))).sort(),
@@ -116,6 +129,7 @@ export default function LeadFinderResultsTable({
   const filteredResults = useMemo(() => {
     const term = search.trim().toLowerCase();
     return results.filter((r) => {
+      if (websiteTypeFilter !== "all" && r.websiteType !== websiteTypeFilter) return false;
       if (term) {
         const haystack = `${r.companyName ?? ""} ${r.website ?? ""} ${r.email ?? ""}`.toLowerCase();
         if (!haystack.includes(term)) return false;
@@ -151,18 +165,39 @@ export default function LeadFinderResultsTable({
       }
       return true;
     });
-  }, [results, search, appliedFilters]);
+  }, [results, search, appliedFilters, websiteTypeFilter]);
 
   const exportHref = `/api/lead-finder/${jobId}/export?ids=${filteredResults.map((r) => r.id).join(",")}`;
   const hasContactData = results.some((r) => r.contactEmail);
 
   return (
     <div>
+      <div className="mb-4 inline-flex rounded border border-[#d5d7dd] p-1 dark:border-[#3a3a3a]">
+        {(["all", "Company Website", "E-commerce"] as WebsiteTypeFilter[]).map((value) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setWebsiteTypeFilter(value)}
+            className={`rounded px-4 py-1.5 text-sm font-bold transition ${
+              websiteTypeFilter === value
+                ? "bg-[#07172b] text-white"
+                : "text-neutral-600 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-[#2e2e2e]"
+            }`}
+          >
+            {value === "all"
+              ? t.leadFinderResults.websiteTypeAll
+              : value === "Company Website"
+                ? t.leadFinderResults.websiteTypeCompany
+                : t.leadFinderResults.websiteTypeEcommerce}
+          </button>
+        ))}
+      </div>
+
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-3xl font-black dark:text-white">
           {filteredResults.length === results.length
-            ? `${results.length} Companies Found`
-            : `${filteredResults.length} of ${results.length} Companies Found`}
+            ? t.leadFinderResults.companiesFound.replace("{count}", String(results.length))
+            : t.leadFinderResults.companiesFoundOf.replace("{count}", String(filteredResults.length)).replace("{total}", String(results.length))}
         </h2>
 
         <div className="flex items-center gap-3">
@@ -171,7 +206,7 @@ export default function LeadFinderResultsTable({
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search companies..."
+              placeholder={t.leadFinderResults.searchCompaniesPlaceholder}
               className="w-64 rounded border border-[#d5d7dd] py-2.5 pl-9 pr-3 text-sm outline-none focus:border-black dark:border-[#3a3a3a] dark:bg-[#2e2e2e] dark:text-neutral-100 dark:placeholder:text-neutral-500"
             />
           </div>
@@ -183,7 +218,7 @@ export default function LeadFinderResultsTable({
               className="inline-flex items-center gap-2 rounded border border-[#d5d7dd] bg-white px-4 py-2.5 text-sm font-bold hover:bg-neutral-50 dark:border-[#3a3a3a] dark:bg-[#2e2e2e] dark:text-neutral-100 dark:hover:bg-[#3a3a3a]"
             >
               <Filter className="h-4 w-4" />
-              Filters
+              {t.common.filters.label}
               {appliedFilters.length > 0 && (
                 <span className="ml-1 rounded-full bg-[#07172b] px-1.5 py-0.5 text-xs text-white">
                   {appliedFilters.length}
@@ -193,10 +228,10 @@ export default function LeadFinderResultsTable({
 
             {panelOpen && (
               <div className="absolute right-0 z-10 mt-2 w-80 rounded-md border border-[#dfe2e7] bg-white p-5 shadow-lg dark:border-[#3a3a3a] dark:bg-[#242424]">
-                <p className="mb-3 font-mono text-sm uppercase tracking-[0.12em] text-neutral-600 dark:text-neutral-400">Filters</p>
+                <p className="mb-3 font-mono text-sm uppercase tracking-[0.12em] text-neutral-600 dark:text-neutral-400">{t.common.filters.label}</p>
 
                 {draftFilters.length === 0 && (
-                  <p className="mb-3 text-sm text-neutral-500 dark:text-neutral-400">No filters added yet.</p>
+                  <p className="mb-3 text-sm text-neutral-500 dark:text-neutral-400">{t.common.filters.empty}</p>
                 )}
 
                 <div className="mb-3 space-y-2">
@@ -206,9 +241,9 @@ export default function LeadFinderResultsTable({
                       className="flex items-center justify-between rounded border border-[#ececec] bg-[#f9f8f6] px-3 py-2 text-sm dark:border-[#3a3a3a] dark:bg-[#2e2e2e] dark:text-neutral-100"
                     >
                       <span>
-                        <strong>{FILTER_LABELS[filter.type]}:</strong> {filterLabel(filter)}
+                        <strong>{FILTER_LABELS[filter.type]}:</strong> {filterLabel(filter, t)}
                       </span>
-                      <button type="button" onClick={() => removeFilter(filter.type)} aria-label="Remove filter">
+                      <button type="button" onClick={() => removeFilter(filter.type)} aria-label={t.common.filters.remove}>
                         <X className="h-4 w-4 text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white" />
                       </button>
                     </div>
@@ -240,7 +275,7 @@ export default function LeadFinderResultsTable({
                             name="has-email-picker"
                             onChange={() => addFilter({ type: "hasEmail", value: "yes" })}
                           />
-                          Yes
+                          {t.common.yes}
                         </label>
                         <label className="flex items-center gap-2 text-sm dark:text-neutral-200">
                           <input
@@ -248,7 +283,7 @@ export default function LeadFinderResultsTable({
                             name="has-email-picker"
                             onChange={() => addFilter({ type: "hasEmail", value: "no" })}
                           />
-                          No
+                          {t.common.no}
                         </label>
                       </div>
                     )}
@@ -260,7 +295,7 @@ export default function LeadFinderResultsTable({
                             name="email-type-picker"
                             onChange={() => addFilter({ type: "emailType", value: "company" })}
                           />
-                          Company Email Only
+                          {t.leadFinderResults.companyEmailOnly}
                         </label>
                         <label className="flex items-center gap-2 text-sm dark:text-neutral-200">
                           <input
@@ -268,7 +303,7 @@ export default function LeadFinderResultsTable({
                             name="email-type-picker"
                             onChange={() => addFilter({ type: "emailType", value: "personal" })}
                           />
-                          Personal Email
+                          {t.leadFinderResults.personalEmail}
                         </label>
                       </div>
                     )}
@@ -280,7 +315,7 @@ export default function LeadFinderResultsTable({
                             name="has-phone-picker"
                             onChange={() => addFilter({ type: "hasPhone", value: "yes" })}
                           />
-                          Yes
+                          {t.common.yes}
                         </label>
                         <label className="flex items-center gap-2 text-sm dark:text-neutral-200">
                           <input
@@ -288,7 +323,7 @@ export default function LeadFinderResultsTable({
                             name="has-phone-picker"
                             onChange={() => addFilter({ type: "hasPhone", value: "no" })}
                           />
-                          No
+                          {t.common.no}
                         </label>
                       </div>
                     )}
@@ -300,7 +335,7 @@ export default function LeadFinderResultsTable({
                             name="has-website-picker"
                             onChange={() => addFilter({ type: "hasWebsite", value: "yes" })}
                           />
-                          Yes
+                          {t.common.yes}
                         </label>
                         <label className="flex items-center gap-2 text-sm dark:text-neutral-200">
                           <input
@@ -308,7 +343,7 @@ export default function LeadFinderResultsTable({
                             name="has-website-picker"
                             onChange={() => addFilter({ type: "hasWebsite", value: "no" })}
                           />
-                          No
+                          {t.common.no}
                         </label>
                       </div>
                     )}
@@ -320,7 +355,7 @@ export default function LeadFinderResultsTable({
                             name="has-contact-picker"
                             onChange={() => addFilter({ type: "hasContact", value: "yes" })}
                           />
-                          Yes
+                          {t.common.yes}
                         </label>
                         <label className="flex items-center gap-2 text-sm dark:text-neutral-200">
                           <input
@@ -328,7 +363,7 @@ export default function LeadFinderResultsTable({
                             name="has-contact-picker"
                             onChange={() => addFilter({ type: "hasContact", value: "no" })}
                           />
-                          No
+                          {t.common.no}
                         </label>
                       </div>
                     )}
@@ -341,7 +376,7 @@ export default function LeadFinderResultsTable({
                       className="mb-3 w-full rounded border border-[#d5d7dd] p-2 text-sm dark:border-[#3a3a3a] dark:bg-[#2e2e2e] dark:text-neutral-100"
                     >
                       <option value="" disabled>
-                        + Add Filter
+                        {t.common.filters.addPlaceholder}
                       </option>
                       {availableFilterTypes.map((type) => (
                         <option key={type} value={type}>
@@ -358,14 +393,14 @@ export default function LeadFinderResultsTable({
                     onClick={resetFilters}
                     className="text-sm font-bold text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white"
                   >
-                    Reset
+                    {t.common.filters.reset}
                   </button>
                   <button
                     type="button"
                     onClick={applyFilters}
                     className="rounded bg-[#07172b] px-4 py-2 text-sm font-bold text-white hover:bg-[#0d2547]"
                   >
-                    Apply Filters
+                    {t.common.filters.apply}
                   </button>
                 </div>
               </div>
@@ -380,35 +415,37 @@ export default function LeadFinderResultsTable({
                 filteredResults.length === 0 ? "pointer-events-none opacity-50" : "hover:bg-[#222]"
               }`}
             >
-              Export Excel
+              {t.common.exportExcel}
             </a>
           )}
         </div>
       </div>
 
       {filteredResults.length === 0 ? (
-        <p className="text-neutral-500 dark:text-neutral-400">No companies match your search/filters.</p>
+        <p className="text-neutral-500 dark:text-neutral-400">{t.leadFinderResults.noMatch}</p>
       ) : (
         <div className="overflow-x-auto rounded border border-[#dfe2e7] dark:border-[#3a3a3a]">
           <table className="w-full min-w-[960px] text-left">
             <thead className="bg-[#f1eee8] font-mono text-sm uppercase tracking-[0.12em] text-neutral-600 dark:bg-[#3a3a3a] dark:text-neutral-300">
               {hasContactData ? (
                 <tr>
-                  <th className="p-4">Company</th>
-                  <th className="p-4">Website</th>
-                  <th className="p-4">Contact</th>
-                  <th className="p-4">Title</th>
-                  <th className="p-4">Recommended Email</th>
-                  <th className="p-4">Confidence</th>
+                  <th className="p-4">{t.leadFinderResults.tableCompany}</th>
+                  <th className="p-4">{t.leadFinderResults.tableWebsite}</th>
+                  <th className="p-4">{t.leadFinderResults.tableContact}</th>
+                  <th className="p-4">{t.leadFinderResults.tableTitle}</th>
+                  <th className="p-4">{t.leadFinderResults.tableRecommendedEmail}</th>
+                  <th className="p-4">{t.leadFinderResults.tableConfidence}</th>
                 </tr>
               ) : (
                 <tr>
-                  <th className="p-4">Company</th>
-                  <th className="p-4">Website</th>
-                  <th className="p-4">Country</th>
-                  <th className="p-4">Email</th>
-                  <th className="p-4">Phone</th>
-                  <th className="p-4">Score</th>
+                  <th className="p-4">{t.leadFinderResults.tableCompany}</th>
+                  <th className="p-4">{t.leadFinderResults.tableWebsite}</th>
+                  <th className="p-4">{t.leadFinderResults.tableCountry}</th>
+                  <th className="p-4">{t.leadFinderResults.tableEmail}</th>
+                  <th className="p-4">{t.leadFinderResults.tablePhone}</th>
+                  <th className="p-4">{t.leadFinderResults.tableWebsiteType}</th>
+                  <th className="p-4">{t.leadFinderResults.tableMatchReason}</th>
+                  <th className="p-4">{t.leadFinderResults.tableScore}</th>
                 </tr>
               )}
             </thead>
@@ -416,7 +453,7 @@ export default function LeadFinderResultsTable({
               {filteredResults.map((result) => (
                 <tr className="border-t border-[#e5e5e5] dark:border-[#3a3a3a] dark:text-neutral-100" key={result.id}>
                   <td className="p-4">
-                    <strong className="dark:text-white">{result.companyName ?? "Unknown"}</strong>
+                    <strong className="dark:text-white">{result.companyName ?? t.common.unknown}</strong>
                   </td>
                   <td className="max-w-xs truncate p-4">
                     {result.website ? (
@@ -447,6 +484,16 @@ export default function LeadFinderResultsTable({
                       <td className="p-4">{result.country ?? "—"}</td>
                       <td className="p-4">{result.email ?? "—"}</td>
                       <td className="whitespace-nowrap p-4">{result.phone ?? "—"}</td>
+                      <td className="p-4">
+                        {result.websiteType ? (
+                          <Pill tone={result.websiteType === "E-commerce" ? "soft" : "acid"}>{result.websiteType}</Pill>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                      <td className="max-w-xs truncate p-4" title={result.matchReason ?? undefined}>
+                        {result.matchReason ?? "—"}
+                      </td>
                       <td className="p-4">
                         {result.confidenceScore != null ? Math.round(result.confidenceScore) : "—"}
                       </td>

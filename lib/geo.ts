@@ -99,11 +99,7 @@ export async function geocodeCountry(countryCode: string): Promise<{ lat: number
   }
 }
 
-// Nominatim's /search only matches whole tokens (a query for "Munc" returns
-// nothing even though "Munich" would match) — useless for type-ahead. Photon
-// (Komoot's geocoder, same OSM data, no API key) is built for prefix search,
-// so it's used here instead; Nominatim is still used for the actual
-// lat/lng lookup once a full city name is chosen (via geocodeCity above).
+
 export async function searchCities(query: string, countryCode: string): Promise<string[]> {
   try {
     const url = new URL("https://photon.komoot.io/api/");

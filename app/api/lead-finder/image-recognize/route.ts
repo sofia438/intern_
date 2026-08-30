@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 import { verifySession } from "@/lib/dal";
-import { describeImage } from "@/lib/leadfinder/groq";
+import { identifyImage } from "@/lib/leadfinder/groq";
 
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
@@ -23,7 +23,19 @@ export async function POST(request: NextRequest) {
   const buffer = Buffer.from(await file.arrayBuffer());
   const dataUrl = `data:${file.type};base64,${buffer.toString("base64")}`;
 
-  const description = await describeImage(dataUrl);
+  const identification = await identifyImage(dataUrl);
+  if (!identification) {
+    return NextResponse.json({ description: null, identification: null });
+  }
 
-  return NextResponse.json({ description });
+  const description = [
+    identification.product,
+    `Category: ${identification.category}`,
+    identification.partNumber ? `Part/model number: ${identification.partNumber}` : null,
+    identification.brand ? `Brand: ${identification.brand}` : null,
+  ]
+    .filter(Boolean)
+    .join(". ");
+
+  return NextResponse.json({ description, identification });
 }

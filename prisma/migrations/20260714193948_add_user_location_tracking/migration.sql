@@ -1,4 +1,4 @@
--- AlterTable
+
 ALTER TABLE "User" ADD COLUMN     "lastLoginAt" TIMESTAMP(3),
 ADD COLUMN     "latitude" DOUBLE PRECISION,
 ADD COLUMN     "locationCapturedAt" TIMESTAMP(3),

@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { Card, Pill } from "@/components/dashboard/DashboardScreens";
 import LeadFinderResultsPoll from "@/components/dashboard/LeadFinderResultsPoll";
 import { startCampaign } from "@/app/actions/campaigns";
-import { verifySession } from "@/lib/dal";
+import { verifySession, getUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
+import { getDictionaryForUser } from "@/lib/i18n/dictionaries";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
 
 const CAMPAIGN_STATUS_TONE = {
   DRAFT: "soft",
@@ -13,16 +15,21 @@ const CAMPAIGN_STATUS_TONE = {
   FAILED: "danger",
 } as const;
 
-const RECIPIENT_STATUS: Record<string, { label: string; tone: "soft" | "acid" | "danger" | "dark" }> = {
-  PENDING: { label: "⏳ Pending", tone: "soft" },
-  SENDING: { label: "⏳ Sending", tone: "soft" },
-  SENT: { label: "✅ Sent", tone: "acid" },
-  FAILED: { label: "❌ Failed", tone: "danger" },
-  UNSUBSCRIBED: { label: "Unsubscribed", tone: "dark" },
-};
+function recipientStatusMeta(t: Dictionary): Record<string, { label: string; tone: "soft" | "acid" | "danger" | "dark" }> {
+  return {
+    PENDING: { label: t.common.status.recipient.PENDING, tone: "soft" },
+    SENDING: { label: t.common.status.recipient.SENDING, tone: "soft" },
+    SENT: { label: t.common.status.recipient.SENT, tone: "acid" },
+    FAILED: { label: t.common.status.recipient.FAILED, tone: "danger" },
+    UNSUBSCRIBED: { label: t.common.status.recipient.UNSUBSCRIBED, tone: "dark" },
+  };
+}
 
 export default async function Page({ params }: { params: Promise<{ campaignId: string }> }) {
   const session = await verifySession();
+  const user = await getUser();
+  const t = getDictionaryForUser(user?.language);
+  const RECIPIENT_STATUS = recipientStatusMeta(t);
   const { campaignId } = await params;
 
   const campaign = await prisma.emailCampaign.findUnique({
@@ -44,11 +51,11 @@ export default async function Page({ params }: { params: Promise<{ campaignId: s
         <div>
           <h1 className="text-5xl font-black tracking-tight">{campaign.subject}</h1>
           <p className="mt-2 text-xl text-neutral-600">
-            {campaign.searchJob.productName} · {campaign.recipients.length} recipients
+            {campaign.searchJob.productName} · {t.campaignDetailPage.recipientsCount.replace("{count}", String(campaign.recipients.length))}
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <Pill tone={CAMPAIGN_STATUS_TONE[campaign.status]}>{campaign.status}</Pill>
+          <Pill tone={CAMPAIGN_STATUS_TONE[campaign.status]}>{t.common.status.campaign[campaign.status]}</Pill>
           {campaign.status === "DRAFT" && (
             <form action={startCampaign}>
               <input type="hidden" name="campaignId" value={campaign.id} />
@@ -56,14 +63,14 @@ export default async function Page({ params }: { params: Promise<{ campaignId: s
                 type="submit"
                 className="inline-flex items-center gap-2 rounded bg-black px-5 py-2.5 text-sm font-bold text-white hover:bg-[#222]"
               >
-                Start Sending →
+                {t.campaignDetailPage.startSending}
               </button>
             </form>
           )}
           {campaign.status !== "DRAFT" && (
             <a href={`/api/campaigns/${campaign.id}/export`}>
               <span className="inline-flex items-center gap-2 rounded bg-black px-5 py-2.5 text-sm font-bold text-white hover:bg-[#222]">
-                Export Report
+                {t.campaignDetailPage.exportReport}
               </span>
             </a>
           )}
@@ -72,30 +79,32 @@ export default async function Page({ params }: { params: Promise<{ campaignId: s
 
       {campaign.status === "FAILED" && campaign.errorMessage && (
         <Card className="mb-8">
-          <p className="text-red-600">Campaign failed: {campaign.errorMessage}</p>
+          <p className="text-red-600">{t.campaignDetailPage.campaignFailed.replace("{error}", campaign.errorMessage)}</p>
         </Card>
       )}
 
       {isSending && (
         <Card className="mb-8">
           <p>
-            Sending… {sentCount} sent, {failedCount} failed, {campaign.recipients.length - sentCount - failedCount}{" "}
-            remaining.
+            {t.campaignDetailPage.sendingProgress
+              .replace("{sent}", String(sentCount))
+              .replace("{failed}", String(failedCount))
+              .replace("{remaining}", String(campaign.recipients.length - sentCount - failedCount))}
           </p>
         </Card>
       )}
 
       {isSending && <LeadFinderResultsPoll />}
 
-      <Card title="Recipients">
+      <Card title={t.campaignDetailPage.recipientsTitle}>
         <div className="overflow-hidden rounded border border-[#dfe2e7]">
           <table className="w-full text-left">
             <thead className="bg-[#f1eee8] font-mono text-sm uppercase tracking-[0.12em] text-neutral-600">
               <tr>
-                <th className="p-4">Company</th>
-                <th className="p-4">Email</th>
-                <th className="p-4">Sent Time</th>
-                <th className="p-4">Status</th>
+                <th className="p-4">{t.campaignDetailPage.tableCompany}</th>
+                <th className="p-4">{t.campaignDetailPage.tableEmail}</th>
+                <th className="p-4">{t.campaignDetailPage.tableSentTime}</th>
+                <th className="p-4">{t.campaignDetailPage.tableStatus}</th>
               </tr>
             </thead>
             <tbody>
@@ -104,7 +113,7 @@ export default async function Page({ params }: { params: Promise<{ campaignId: s
                 return (
                   <tr className="border-t border-[#e5e5e5]" key={r.id}>
                     <td className="p-4">
-                      <strong>{r.companyName ?? "Unknown"}</strong>
+                      <strong>{r.companyName ?? t.common.unknown}</strong>
                     </td>
                     <td className="p-4">{r.email}</td>
                     <td className="p-4">

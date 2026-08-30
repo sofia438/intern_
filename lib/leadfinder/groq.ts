@@ -2,10 +2,17 @@ import Groq from "groq-sdk";
 
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
-const CHAT_MODEL = process.env.GROQ_CHAT_MODEL || "llama-3.3-70b-versatile";
-const VISION_MODEL = process.env.GROQ_VISION_MODEL || "llama-3.2-90b-vision-preview";
+const CHAT_MODEL = process.env.GROQ_CHAT_MODEL || "openai/gpt-oss-120b";
+const VISION_MODEL = process.env.GROQ_VISION_MODEL || "qwen/qwen3.6-27b";
 
-export async function describeImage(dataUrl: string): Promise<string | null> {
+export type ImageIdentification = {
+  product: string;
+  category: string;
+  partNumber: string | null;
+  brand: string | null;
+};
+
+export async function identifyImage(dataUrl: string): Promise<ImageIdentification | null> {
   try {
     const completion = await groq.chat.completions.create({
       model: VISION_MODEL,
@@ -15,16 +22,33 @@ export async function describeImage(dataUrl: string): Promise<string | null> {
           content: [
             {
               type: "text",
-              text: "Identify this product in 1-2 short sentences: what it is, its likely category, and any visible part/model identifiers. Be concise.",
+              text: `Identify the product in this image for a B2B export lead generation tool. Respond ONLY with a JSON object in this exact shape:
+{"product": "short product name", "category": "short category", "partNumber": "visible part/model number or null", "brand": "visible brand/logo or null"}
+Always provide your best guess for "product" and "category". Use null for "partNumber"/"brand" if none is visible. Be concise.`,
             },
             { type: "image_url", image_url: { url: dataUrl } },
           ],
         },
       ],
-      max_tokens: 150,
+      response_format: { type: "json_object" },
+      // The vision model (qwen/qwen3.6-27b) 
+      
+      reasoning_format: "hidden",
+      max_tokens: 1500,
     });
 
-    return completion.choices[0]?.message?.content?.trim() || null;
+    const raw = completion.choices[0]?.message?.content?.trim();
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (typeof parsed.product !== "string" || typeof parsed.category !== "string") return null;
+
+    return {
+      product: parsed.product,
+      category: parsed.category,
+      partNumber: typeof parsed.partNumber === "string" ? parsed.partNumber : null,
+      brand: typeof parsed.brand === "string" ? parsed.brand : null,
+    };
   } catch {
     return null;
   }
@@ -35,6 +59,8 @@ export async function generateKeywords(input: {
   oemNumber?: string | null;
   hsCode?: string | null;
   imageDescription?: string | null;
+  industry?: string | null;
+  referenceSummary?: string | null;
   countryName: string;
 }): Promise<string[]> {
   const fallback = [`${input.productName} ${input.countryName}`];
@@ -43,7 +69,7 @@ export async function generateKeywords(input: {
     const prompt = `You are helping find companies that import, distribute, or manufacture a specific product in a target country, for a B2B export lead generation tool.
 
 Product name: ${input.productName}
-${input.oemNumber ? `OEM/part number: ${input.oemNumber}\n` : ""}${input.hsCode ? `HS code: ${input.hsCode}\n` : ""}${input.imageDescription ? `Additional context from a product photo: ${input.imageDescription}\n` : ""}Target country: ${input.countryName}
+${input.oemNumber ? `OEM/part number: ${input.oemNumber}\n` : ""}${input.hsCode ? `HS code: ${input.hsCode}\n` : ""}${input.imageDescription ? `Additional context from a product photo: ${input.imageDescription}\n` : ""}${input.industry ? `Target industry: ${input.industry}\n` : ""}${input.referenceSummary ? `Example target-customer profile: ${input.referenceSummary}\n` : ""}Target country: ${input.countryName}
 
 Generate 4 diverse, realistic search engine queries (in English) that would surface companies (importers, distributors, wholesalers, manufacturers) dealing in this product in the target country. Vary the phrasing and business terms used (e.g. "distributor", "supplier", "wholesaler", "importer"). Do not include consumer-shopping phrasing.
 
@@ -257,10 +283,17 @@ Respond with a JSON object: {"variants": ["...", "...", "...", "...", "..."]}`;
   }
 }
 
+export type CandidateScore = {
+  score: number;
+  websiteType: "Company Website" | "E-commerce";
+  matchReason: string;
+};
+
 export async function scoreCandidates(
   candidates: { title: string; link: string; snippet: string }[],
-  productContext: string
-): Promise<Record<string, number>> {
+  productContext: string,
+  extraContext?: string
+): Promise<Record<string, CandidateScore>> {
   if (candidates.length === 0) return {};
 
   try {
@@ -271,33 +304,44 @@ export async function scoreCandidates(
     const prompt = `You are scoring search results for relevance to a B2B export lead search.
 
 Product context: ${productContext}
-
-For each numbered search result below, give a confidence score from 0 to 100 for how likely this is a real company website (importer, distributor, manufacturer, wholesaler) relevant to the product context — NOT a marketplace listing, forum, news article, or unrelated business.
+${extraContext ? `${extraContext}\n` : ""}
+For each numbered search result below, analyze it and return three things:
+1. "score": a confidence score from 0 to 100 for how likely this is a real company website (importer, distributor, manufacturer, wholesaler) relevant to the product context — NOT a marketplace listing, forum, news article, or unrelated business.
+2. "websiteType": classify the site as either "Company Website" (a business's own corporate/brand site) or "E-commerce" (an online store/marketplace listing/shopping cart page), based on the title/URL/snippet.
+3. "matchReason": one short sentence (max ~20 words) explaining why this result matches the product context. Do not mention the score itself.
 
 ${list}
 
-Respond with a JSON object: {"scores": [{"index": 0, "score": 85}, {"index": 1, "score": 20}]} covering every index.`;
+Respond with a JSON object: {"scores": [{"index": 0, "score": 85, "websiteType": "Company Website", "matchReason": "..."}, ...]} covering every index.`;
 
     const completion = await groq.chat.completions.create({
       model: CHAT_MODEL,
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
       temperature: 0.2,
-      max_tokens: 1500,
+      max_tokens: 2200,
     });
 
     const raw = completion.choices[0]?.message?.content;
     if (!raw) return {};
 
     const parsed = JSON.parse(raw);
-    const result: Record<string, number> = {};
+    const result: Record<string, CandidateScore> = {};
 
     if (Array.isArray(parsed.scores)) {
       for (const entry of parsed.scores) {
         const idx = entry?.index;
         const score = entry?.score;
         if (typeof idx === "number" && typeof score === "number" && candidates[idx]) {
-          result[candidates[idx].link] = Math.max(0, Math.min(100, score));
+          const rawType = typeof entry?.websiteType === "string" ? entry.websiteType.toLowerCase() : "";
+          const websiteType: CandidateScore["websiteType"] =
+            rawType.includes("e-commerce") || rawType.includes("ecommerce") ? "E-commerce" : "Company Website";
+          const matchReason = typeof entry?.matchReason === "string" ? entry.matchReason.trim().slice(0, 300) : "";
+          result[candidates[idx].link] = {
+            score: Math.max(0, Math.min(100, score)),
+            websiteType,
+            matchReason,
+          };
         }
       }
     }
@@ -305,5 +349,35 @@ Respond with a JSON object: {"scores": [{"index": 0, "score": 85}, {"index": 1, 
     return result;
   } catch {
     return {};
+  }
+}
+
+export async function analyzeReferenceWebsites(
+  pages: { url: string; text: string | null }[]
+): Promise<string | null> {
+  const withText = pages.filter((p): p is { url: string; text: string } => !!p.text && p.text.trim().length > 0);
+  if (withText.length === 0) return null;
+
+  try {
+    const list = withText.map((p, i) => `${i + 1}. ${p.url}\n${p.text.slice(0, 1500)}`).join("\n\n");
+
+    const prompt = `You are analyzing example customer websites for a B2B export lead generation tool, to help it understand what kind of company profile the user is targeting.
+
+Here is scraped text content from ${withText.length} example website(s) the user considers good potential customers:
+
+${list}
+
+Summarize, in 2-3 sentences, the common characteristics of these companies (e.g. business type, products/services offered, industry focus, scale/market) that would help identify similar companies elsewhere. Do not mention URLs or quote the text verbatim — synthesize.`;
+
+    const completion = await groq.chat.completions.create({
+      model: CHAT_MODEL,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+      max_tokens: 300,
+    });
+
+    return completion.choices[0]?.message?.content?.trim() || null;
+  } catch {
+    return null;
   }
 }

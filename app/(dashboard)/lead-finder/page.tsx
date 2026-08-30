@@ -2,15 +2,16 @@ import Link from "next/link";
 
 import LeadFinderTabs from "@/components/dashboard/LeadFinderTabs";
 import { Card, Pill } from "@/components/dashboard/DashboardScreens";
-import { verifySession } from "@/lib/dal";
+import { verifySession, getUser } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
 import { countryName } from "@/lib/leadfinder/countries";
+import { getDictionaryForUser } from "@/lib/i18n/dictionaries";
 
 const RANGE_OPTIONS = [
-  { value: "1d", label: "1d", days: 1 },
-  { value: "7d", label: "7d", days: 7 },
-  { value: "30d", label: "30d", days: 30 },
-  { value: "90d", label: "90d", days: 90 },
+  { value: "1d", days: 1 },
+  { value: "7d", days: 7 },
+  { value: "30d", days: 30 },
+  { value: "90d", days: 90 },
 ] as const;
 
 type RangeValue = (typeof RANGE_OPTIONS)[number]["value"];
@@ -24,33 +25,44 @@ function rangeCutoff(range: RangeValue): Date {
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ range?: string }> }) {
   const session = await verifySession();
+  const user = await getUser();
+  const t = getDictionaryForUser(user?.language);
   const { range: rangeParam } = await searchParams;
   const range: RangeValue = RANGE_OPTIONS.some((r) => r.value === rangeParam) ? (rangeParam as RangeValue) : "30d";
 
-  const [pastJobs, hasAnyJobs] = await Promise.all([
+  const [pastJobs, hasAnyJobs, products] = await Promise.all([
     prisma.searchJob.findMany({
       where: { companyId: session.companyId, createdAt: { gte: rangeCutoff(range) } },
       orderBy: { createdAt: "desc" },
       take: 50,
     }),
     prisma.searchJob.count({ where: { companyId: session.companyId } }).then((count) => count > 0),
+    prisma.product.findMany({ where: { companyId: session.companyId }, orderBy: { createdAt: "asc" } }),
   ]);
 
   return (
     <main className="p-8">
       <div className="mb-8">
-        <h1 className="text-5xl font-black tracking-tight">AI Lead Finder</h1>
+        <h1 className="text-5xl font-black tracking-tight">{t.leadFinderPage.title}</h1>
         <p className="mt-2 text-xl text-neutral-600 dark:text-neutral-400">
-          Find companies importing or distributing your product, worldwide.
+          {t.leadFinderPage.subtitle}
         </p>
       </div>
 
-      <LeadFinderTabs />
+      <LeadFinderTabs
+        products={products.map((p) => ({
+          id: p.id,
+          name: p.name,
+          englishName: p.englishName,
+          hsCode: p.hsCode,
+          hasImage: p.image !== null,
+        }))}
+      />
 
       {hasAnyJobs && (
         <div className="mt-8">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-3xl font-black dark:text-white">Recent Searches</h2>
+            <h2 className="text-3xl font-black dark:text-white">{t.leadFinderPage.recentSearches}</h2>
             <div className="inline-flex items-center gap-1 rounded-full border border-[#d5d7dd] bg-[#f4f2f2] p-1 dark:border-[#3a3a3a] dark:bg-[#2e2e2e]">
               {RANGE_OPTIONS.map((option) => (
                 <Link
@@ -62,7 +74,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
                       : "text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white"
                   }`}
                 >
-                  {option.label}
+                  {t.common.range[option.value]}
                 </Link>
               ))}
             </div>
@@ -70,7 +82,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
 
           <Card>
             {pastJobs.length === 0 ? (
-              <p className="text-neutral-500 dark:text-neutral-400">No searches in the last {range}.</p>
+              <p className="text-neutral-500 dark:text-neutral-400">{t.leadFinderPage.noSearchesInRange.replace("{range}", t.common.range[range])}</p>
             ) : (
               <div className="divide-y divide-[#e5e5e5] dark:divide-[#3a3a3a]">
                 {pastJobs.map((job) => (
@@ -82,7 +94,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
                     <div>
                       <div className="flex items-center gap-2">
                         <strong className="text-lg dark:text-white">{job.productName}</strong>
-                        <Pill tone="dark">{job.searchType === "MAPS" ? "Maps" : "Website"}</Pill>
+                        <Pill tone="dark">{job.searchType === "MAPS" ? t.leadFinderPage.maps : t.leadFinderPage.website}</Pill>
                       </div>
                       <small className="block text-neutral-500 dark:text-neutral-400">
                         {job.countries.map((c) => countryName(c)).join(", ")}
@@ -94,9 +106,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ r
                     </div>
                     <div className="flex items-center gap-4">
                       <Pill tone={job.status === "COMPLETED" ? "acid" : job.status === "FAILED" ? "danger" : "soft"}>
-                        {job.status}
+                        {t.common.status.searchJob[job.status]}
                       </Pill>
-                      <span>{job.resultsCount} results</span>
+                      <span>{t.leadFinderPage.resultsCount.replace("{count}", String(job.resultsCount))}</span>
                     </div>
                   </Link>
                 ))}

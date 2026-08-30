@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     try {
       user = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const company = await tx.company.create({ data: { name: companyName } });
-        return tx.user.create({
+        const createdUser = await tx.user.create({
           data: {
             companyId: company.id,
             name: googleUser.name ?? email.split("@")[0],
@@ -69,9 +69,11 @@ export async function GET(request: NextRequest) {
             role: "ADMIN",
           },
         });
+        await tx.chatbot.create({ data: { companyId: company.id } });
+        return createdUser;
       });
     } catch {
-      // Race: two simultaneous first-time sign-ins for the same email/googleId.
+      
       user = await prisma.user.findUnique({ where: { googleId: googleUser.sub } });
       if (!user) {
         return NextResponse.redirect(new URL("/login?error=oauth_failed", request.url));

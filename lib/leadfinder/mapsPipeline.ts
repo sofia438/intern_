@@ -8,8 +8,7 @@ import { searchGoogleMaps, type MapsCandidate } from "@/lib/leadfinder/mapsSearc
 import { scrapeWebsite, mapWithConcurrency } from "@/lib/leadfinder/scrape";
 
 const SCRAPE_CONCURRENCY = 5;
-// No radius input anymore: a city search zooms in close, a whole-country
-// search (no city given) zooms out wide from the country's centroid.
+
 const CITY_ZOOM = 12;
 const COUNTRY_ZOOM = 6;
 
@@ -49,9 +48,7 @@ export async function runMapsSearchJob(jobId: string): Promise<void> {
         queries.push(translated);
       }
 
-      // Each country can have its own chosen city now. If none was picked for
-      // this country, fall back to the country's own centroid — the search
-      // then zooms out to cover the whole country instead of just a city.
+      
       const cityForCountry = cityByCountry[countryCode];
       const cityCoords = cityForCountry ? await geocodeCity(cityForCountry, countryCode) : null;
       const coords = cityCoords ?? (await geocodeCountry(countryCode));
@@ -63,7 +60,7 @@ export async function runMapsSearchJob(jobId: string): Promise<void> {
       }
     }
 
-    // Dedupe across countries/queries by Google's own place_id.
+    
     const seenPlaceIds = new Set<string>();
     const deduped: CandidateWithCountry[] = [];
     for (const candidate of allCandidates) {

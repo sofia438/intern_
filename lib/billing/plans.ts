@@ -1,7 +1,8 @@
-// Plan definitions live here, not hard-coded into the Billing UI, so pricing/features
-// can change without touching the page. Exact prices/features are placeholders —
-// per the spec, these aren't finalized yet.
+
 export type PlanId = "BASIC" | "PRO" | "MAX";
+
+
+export type PlanLimits = { searches: number; leads: number; emails: number; chatbotConversations: number };
 
 export type Plan = {
   id: PlanId;
@@ -9,6 +10,7 @@ export type Plan = {
   price: number;
   mostPopular?: boolean;
   features: string[];
+  limits: PlanLimits;
 };
 
 export const PLANS: Plan[] = [
@@ -25,6 +27,7 @@ export const PLANS: Plan[] = [
       "500 leads / month",
       "1 workspace user",
     ],
+    limits: { searches: 100, leads: 500, emails: 0, chatbotConversations: 0 },
   },
   {
     id: "PRO",
@@ -41,6 +44,7 @@ export const PLANS: Plan[] = [
       "5,000 leads / month",
       "Multiple users",
     ],
+    limits: { searches: 1000, leads: 5000, emails: 5000, chatbotConversations: 1000 },
   },
   {
     id: "MAX",
@@ -56,6 +60,7 @@ export const PLANS: Plan[] = [
       "Advanced analytics",
       "Priority support",
     ],
+    limits: { searches: 10000, leads: 50000, emails: 20000, chatbotConversations: 5000 },
   },
 ];
 

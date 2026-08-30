@@ -3,6 +3,9 @@
 import { useMemo, useState } from "react";
 import { Filter, Search, X } from "lucide-react";
 
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+import type { Dictionary } from "@/lib/i18n/dictionaries";
+
 type MapsResultRow = {
   id: string;
   companyName: string | null;
@@ -26,21 +29,23 @@ type ActiveFilter =
   | { type: "minRating"; value: number }
   | { type: "category"; value: string };
 
-const FILTER_LABELS: Record<FilterType, string> = {
-  hasEmail: "Has Email",
-  hasWebsite: "Has Website",
-  hasPhone: "Has Phone",
-  minRating: "Minimum Rating",
-  category: "Category",
-};
+function filterLabels(t: Dictionary): Record<FilterType, string> {
+  return {
+    hasEmail: t.mapsResults.filterHasEmail,
+    hasWebsite: t.mapsResults.filterHasWebsite,
+    hasPhone: t.mapsResults.filterHasPhone,
+    minRating: t.mapsResults.filterMinRating,
+    category: t.mapsResults.filterCategory,
+  };
+}
 
 const ALL_FILTER_TYPES: FilterType[] = ["hasEmail", "hasWebsite", "hasPhone", "minRating", "category"];
 const RATING_OPTIONS = [4.5, 4, 3, 2];
 
-function filterLabel(filter: ActiveFilter): string {
+function filterLabel(filter: ActiveFilter, t: Dictionary): string {
   if (filter.type === "minRating") return `${filter.value}+`;
   if (filter.type === "category") return filter.value;
-  return filter.value === "yes" ? "Yes" : "No";
+  return filter.value === "yes" ? t.common.yes : t.common.no;
 }
 
 export default function MapsResultsTable({
@@ -52,6 +57,8 @@ export default function MapsResultsTable({
   results: MapsResultRow[];
   canExport: boolean;
 }) {
+  const { dictionary: t } = useLanguage();
+  const FILTER_LABELS = filterLabels(t);
   const [search, setSearch] = useState("");
   const [panelOpen, setPanelOpen] = useState(false);
   const [appliedFilters, setAppliedFilters] = useState<ActiveFilter[]>([]);
@@ -130,8 +137,8 @@ export default function MapsResultsTable({
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-3xl font-black dark:text-white">
           {filteredResults.length === results.length
-            ? `${results.length} Businesses Found`
-            : `${filteredResults.length} of ${results.length} Businesses Found`}
+            ? t.mapsResults.businessesFound.replace("{count}", String(results.length))
+            : t.mapsResults.businessesFoundOf.replace("{count}", String(filteredResults.length)).replace("{total}", String(results.length))}
         </h2>
 
         <div className="flex items-center gap-3">
@@ -140,7 +147,7 @@ export default function MapsResultsTable({
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search businesses..."
+              placeholder={t.mapsResults.searchBusinessesPlaceholder}
               className="w-64 rounded border border-[#d5d7dd] py-2.5 pl-9 pr-3 text-sm outline-none focus:border-black dark:border-[#3a3a3a] dark:bg-[#2e2e2e] dark:text-neutral-100 dark:placeholder:text-neutral-500"
             />
           </div>
@@ -152,7 +159,7 @@ export default function MapsResultsTable({
               className="inline-flex items-center gap-2 rounded border border-[#d5d7dd] bg-white px-4 py-2.5 text-sm font-bold hover:bg-neutral-50 dark:border-[#3a3a3a] dark:bg-[#2e2e2e] dark:text-neutral-100 dark:hover:bg-[#3a3a3a]"
             >
               <Filter className="h-4 w-4" />
-              Filters
+              {t.common.filters.label}
               {appliedFilters.length > 0 && (
                 <span className="ml-1 rounded-full bg-[#07172b] px-1.5 py-0.5 text-xs text-white">
                   {appliedFilters.length}
@@ -162,10 +169,10 @@ export default function MapsResultsTable({
 
             {panelOpen && (
               <div className="absolute right-0 z-10 mt-2 w-80 rounded-md border border-[#dfe2e7] bg-white p-5 shadow-lg dark:border-[#3a3a3a] dark:bg-[#242424]">
-                <p className="mb-3 font-mono text-sm uppercase tracking-[0.12em] text-neutral-600 dark:text-neutral-400">Filters</p>
+                <p className="mb-3 font-mono text-sm uppercase tracking-[0.12em] text-neutral-600 dark:text-neutral-400">{t.common.filters.label}</p>
 
                 {draftFilters.length === 0 && (
-                  <p className="mb-3 text-sm text-neutral-500 dark:text-neutral-400">No filters added yet.</p>
+                  <p className="mb-3 text-sm text-neutral-500 dark:text-neutral-400">{t.common.filters.empty}</p>
                 )}
 
                 <div className="mb-3 space-y-2">
@@ -175,9 +182,9 @@ export default function MapsResultsTable({
                       className="flex items-center justify-between rounded border border-[#ececec] bg-[#f9f8f6] px-3 py-2 text-sm dark:border-[#3a3a3a] dark:bg-[#2e2e2e] dark:text-neutral-100"
                     >
                       <span>
-                        <strong>{FILTER_LABELS[filter.type]}:</strong> {filterLabel(filter)}
+                        <strong>{FILTER_LABELS[filter.type]}:</strong> {filterLabel(filter, t)}
                       </span>
-                      <button type="button" onClick={() => removeFilter(filter.type)} aria-label="Remove filter">
+                      <button type="button" onClick={() => removeFilter(filter.type)} aria-label={t.common.filters.remove}>
                         <X className="h-4 w-4 text-neutral-500 hover:text-black dark:text-neutral-400 dark:hover:text-white" />
                       </button>
                     </div>
@@ -195,7 +202,7 @@ export default function MapsResultsTable({
                             name="has-email-picker"
                             onChange={() => addFilter({ type: "hasEmail", value: "yes" })}
                           />
-                          Yes
+                          {t.common.yes}
                         </label>
                         <label className="flex items-center gap-2 text-sm dark:text-neutral-200">
                           <input
@@ -203,7 +210,7 @@ export default function MapsResultsTable({
                             name="has-email-picker"
                             onChange={() => addFilter({ type: "hasEmail", value: "no" })}
                           />
-                          No
+                          {t.common.no}
                         </label>
                       </div>
                     )}
@@ -215,7 +222,7 @@ export default function MapsResultsTable({
                             name="has-website-picker"
                             onChange={() => addFilter({ type: "hasWebsite", value: "yes" })}
                           />
-                          Yes
+                          {t.common.yes}
                         </label>
                         <label className="flex items-center gap-2 text-sm dark:text-neutral-200">
                           <input
@@ -223,7 +230,7 @@ export default function MapsResultsTable({
                             name="has-website-picker"
                             onChange={() => addFilter({ type: "hasWebsite", value: "no" })}
                           />
-                          No
+                          {t.common.no}
                         </label>
                       </div>
                     )}
@@ -235,7 +242,7 @@ export default function MapsResultsTable({
                             name="has-phone-picker"
                             onChange={() => addFilter({ type: "hasPhone", value: "yes" })}
                           />
-                          Yes
+                          {t.common.yes}
                         </label>
                         <label className="flex items-center gap-2 text-sm dark:text-neutral-200">
                           <input
@@ -243,7 +250,7 @@ export default function MapsResultsTable({
                             name="has-phone-picker"
                             onChange={() => addFilter({ type: "hasPhone", value: "no" })}
                           />
-                          No
+                          {t.common.no}
                         </label>
                       </div>
                     )}
@@ -256,7 +263,7 @@ export default function MapsResultsTable({
                               name="min-rating-picker"
                               onChange={() => addFilter({ type: "minRating", value: r })}
                             />
-                            {r}+ stars
+                            {t.mapsResults.starsSuffix.replace("{rating}", String(r))}
                           </label>
                         ))}
                       </div>
@@ -264,7 +271,7 @@ export default function MapsResultsTable({
                     {pickerType === "category" && (
                       <div className="max-h-40 space-y-1.5 overflow-y-auto">
                         {categories.length === 0 ? (
-                          <p className="text-sm text-neutral-500 dark:text-neutral-400">No categories in these results.</p>
+                          <p className="text-sm text-neutral-500 dark:text-neutral-400">{t.mapsResults.noCategoriesInResults}</p>
                         ) : (
                           categories.map((c) => (
                             <label key={c} className="flex items-center gap-2 text-sm dark:text-neutral-200">
@@ -288,7 +295,7 @@ export default function MapsResultsTable({
                       className="mb-3 w-full rounded border border-[#d5d7dd] p-2 text-sm dark:border-[#3a3a3a] dark:bg-[#2e2e2e] dark:text-neutral-100"
                     >
                       <option value="" disabled>
-                        + Add Filter
+                        {t.common.filters.addPlaceholder}
                       </option>
                       {availableFilterTypes.map((type) => (
                         <option key={type} value={type}>
@@ -305,14 +312,14 @@ export default function MapsResultsTable({
                     onClick={resetFilters}
                     className="text-sm font-bold text-neutral-600 hover:text-black dark:text-neutral-400 dark:hover:text-white"
                   >
-                    Reset
+                    {t.common.filters.reset}
                   </button>
                   <button
                     type="button"
                     onClick={applyFilters}
                     className="rounded bg-[#07172b] px-4 py-2 text-sm font-bold text-white hover:bg-[#0d2547]"
                   >
-                    Apply Filters
+                    {t.common.filters.apply}
                   </button>
                 </div>
               </div>
@@ -327,34 +334,34 @@ export default function MapsResultsTable({
                 filteredResults.length === 0 ? "pointer-events-none opacity-50" : "hover:bg-[#222]"
               }`}
             >
-              Export Excel
+              {t.common.exportExcel}
             </a>
           )}
         </div>
       </div>
 
       {filteredResults.length === 0 ? (
-        <p className="text-neutral-500 dark:text-neutral-400">No businesses match your search/filters.</p>
+        <p className="text-neutral-500 dark:text-neutral-400">{t.mapsResults.noMatch}</p>
       ) : (
         <div className="overflow-x-auto rounded border border-[#dfe2e7] dark:border-[#3a3a3a]">
           <table className="w-full min-w-[1200px] text-left">
             <thead className="bg-[#f1eee8] font-mono text-sm uppercase tracking-[0.12em] text-neutral-600 dark:bg-[#3a3a3a] dark:text-neutral-300">
               <tr>
-                <th className="p-4">Company</th>
-                <th className="p-4">Category</th>
-                <th className="p-4">Phone</th>
-                <th className="p-4">Email</th>
-                <th className="p-4">Opening Hours</th>
-                <th className="p-4">Address</th>
-                <th className="p-4">Country</th>
-                <th className="p-4">Rating</th>
+                <th className="p-4">{t.mapsResults.tableCompany}</th>
+                <th className="p-4">{t.mapsResults.tableCategory}</th>
+                <th className="p-4">{t.mapsResults.tablePhone}</th>
+                <th className="p-4">{t.mapsResults.tableEmail}</th>
+                <th className="p-4">{t.mapsResults.tableOpeningHours}</th>
+                <th className="p-4">{t.mapsResults.tableAddress}</th>
+                <th className="p-4">{t.mapsResults.tableCountry}</th>
+                <th className="p-4">{t.mapsResults.tableRating}</th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-[#242424]">
               {filteredResults.map((result) => (
                 <tr className="border-t border-[#e5e5e5] dark:border-[#3a3a3a] dark:text-neutral-100" key={result.id}>
                   <td className="p-4">
-                    <strong className="dark:text-white">{result.companyName ?? "Unknown"}</strong>
+                    <strong className="dark:text-white">{result.companyName ?? t.common.unknown}</strong>
                     {result.website && (
                       <a
                         href={result.website}
@@ -362,7 +369,7 @@ export default function MapsResultsTable({
                         rel="noreferrer"
                         className="block text-sm text-blue-600 underline dark:text-blue-400"
                       >
-                        Website
+                        {t.mapsResults.website}
                       </a>
                     )}
                   </td>

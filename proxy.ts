@@ -3,8 +3,7 @@ import type { NextRequest } from "next/server";
 
 import { decrypt } from "@/lib/session";
 
-// app/(dashboard)/* route-group pages resolve to bare paths (e.g. /dashboard, /settings),
-// not a /dashboard/* prefix, so each protected route must be listed explicitly.
+
 const protectedPaths = [
   "/dashboard",
   "/visitor-intelligence",
@@ -18,8 +17,8 @@ const protectedPaths = [
   "/billing",
   "/admin",
   "/settings",
-  "/profile",
   "/leads",
+  "/profile-setup",
 ];
 
 const authPaths = ["/login", "/register", "/forgot-password"];

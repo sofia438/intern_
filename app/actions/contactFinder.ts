@@ -1,6 +1,7 @@
 "use server";
 
 import { after } from "next/server";
+import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/prisma";
@@ -22,4 +23,5 @@ export async function startContactFinder(formData: FormData): Promise<void> {
   after(() => runContactFinderJob(jobId));
 
   revalidatePath(`/lead-finder/results/${jobId}`);
+  redirect(`/lead-finder/results/${jobId}`);
 }

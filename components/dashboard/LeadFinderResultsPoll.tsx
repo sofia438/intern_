@@ -3,10 +3,13 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
+import { useLanguage } from "@/lib/i18n/LanguageContext";
+
 const POLL_INTERVAL_MS = 4000;
-const MAX_POLLS = 150; // ~10 minutes
+const MAX_POLLS = 150; 
 
 export default function LeadFinderResultsPoll() {
+  const { dictionary: t } = useLanguage();
   const router = useRouter();
   const pollCount = useRef(0);
 
@@ -25,7 +28,7 @@ export default function LeadFinderResultsPoll() {
 
   return (
     <p className="mt-4 text-sm text-neutral-500">
-      This search is still running — the page will refresh automatically.
+      {t.leadFinderResultsPoll.stillRunning}
     </p>
   );
 }

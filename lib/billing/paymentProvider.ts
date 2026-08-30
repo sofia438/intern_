@@ -1,8 +1,4 @@
-// TEST-MODE payment processing only — no real payment provider is connected yet.
-// Never stores raw card numbers or CVCs; only derives what a real provider would
-// return (brand/last4/expiry) for display. Deliberately uses Stripe's own published
-// test card numbers (https://docs.stripe.com/testing) so this file is a clean
-// drop-in swap for the real Stripe SDK later — same numbers, same outcomes.
+// TEST-MODE 
 export type PaymentDeclineReason = "card_declined" | "insufficient_funds" | "invalid_card";
 
 export type PaymentResult = { success: true; brand: string; last4: string } | { success: false; reason: PaymentDeclineReason };

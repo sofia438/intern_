@@ -1,7 +1,7 @@
-// This is your Prisma schema file,
+
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// : `npx create-db`
 
 generator client {
   provider = "prisma-client"
@@ -18,26 +18,56 @@ enum Role {
 }
 
 model Company {
-  id                String             @id @default(cuid())
-  name              String
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  users             User[]
-  websiteVisitors   WebsiteVisitor[]
-  searchJobs        SearchJob[]
-  emailCampaigns    EmailCampaign[]
-  emailSuppressions EmailSuppression[]
-  chatbot           Chatbot?
-  conversations     Conversation[]
-  leads             Lead[]
-  subscription      Subscription?
-  paymentMethod     PaymentMethod?
-  billingProfile    BillingProfile?
-  invoices          Invoice[]
+  id                 String              @id @default(cuid())
+  name               String
+  website            String?
+  profileCompletedAt DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  users              User[]
+  websiteVisitors    WebsiteVisitor[]
+  searchJobs         SearchJob[]
+  emailCampaigns     EmailCampaign[]
+  emailSuppressions  EmailSuppression[]
+  chatbot            Chatbot?
+  conversations      Conversation[]
+  leads              Lead[]
+  subscription       Subscription?
+  paymentMethod      PaymentMethod?
+  billingProfile     BillingProfile?
+  invoices           Invoice[]
+  products           Product[]
+  referenceWebsites  ReferenceWebsite[]
 }
 
-// Module 8 — Billing & Subscription. Test-mode only: PaymentMethod stores no
-// raw card data, just what a real provider would return (brand/last4/expiry).
+
+model Product {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  name        String
+  englishName String?
+  hsCode      String?
+  image       Bytes?
+  imageType   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+model ReferenceWebsite {
+  id        String   @id @default(cuid())
+  companyId String
+  company   Company  @relation(fields: [companyId], references: [id])
+  url       String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId])
+}
+
+
 enum SubscriptionStatus {
   ACTIVE
   CANCELED
@@ -117,6 +147,9 @@ model User {
   locationPermission Boolean?
   locationCapturedAt DateTime?
 
+  
+  language String @default("en")
+
   searchJobs     SearchJob[]
   emailCampaigns EmailCampaign[]
 }
@@ -183,6 +216,7 @@ model SearchJob {
   relatedIndustries String[]        @default([])
   cityByCountry     Json?
   industry          String?
+  potentialCustomerWebsites String[] @default([])
   status            SearchJobStatus @default(PENDING)
   resultsCount      Int             @default(0)
   errorMessage      String?
@@ -207,6 +241,8 @@ model SearchResult {
   phone           String?
   address         String?
   confidenceScore Float?
+  websiteType     String?
+  matchReason     String?
   openingHours    String?
   rating          Float?
   reviewsCount    Int?
@@ -292,8 +328,7 @@ model EmailSuppression {
   @@unique([companyId, email])
 }
 
-// Phase 4 — Company Knowledge Base. Phase 9 added language settings.
-// Phase 12 added identity/status settings (enabled, name, greeting, theme, quick actions).
+
 model Chatbot {
   id                 String   @id @default(cuid())
   companyId          String   @unique
@@ -301,7 +336,7 @@ model Chatbot {
   knowledge          String?
   languageMode       String   @default("automatic")
   supportedLanguages String[] @default([])
-  enabled            Boolean  @default(false)
+  enabled            Boolean  @default(true)
   assistantName      String   @default("AI Assistant")
   greeting           String   @default("Hello! How can I help you today?")
   themeColor         String   @default("#4f46e5")
@@ -310,8 +345,7 @@ model Chatbot {
   updatedAt          DateTime @updatedAt
 }
 
-// Phase 5 — Conversation Memory. Ties each visitor's messages together so the
-// AI receives real prior context instead of trusting client-supplied history.
+
 model Conversation {
   id           String    @id @default(cuid())
   companyId    String
@@ -325,8 +359,7 @@ model Conversation {
   @@index([companyId, visitorId, lastActiveAt])
 }
 
-// Phase 8 — Lead Collection. One lead per conversation, created once the visitor
-// submits the inline contact form triggered by a qualified-lead signal (Phase 7).
+
 model Lead {
   id              String       @id @default(cuid())
   companyId       String
@@ -351,10 +384,10 @@ model Message {
   content        String
   createdAt      DateTime     @default(now())
 
-  // Phase 7 — Visitor Intent. Only ever set on role="visitor" messages.
+  
   intent        String?
   qualifiedLead Boolean @default(false)
-  // Phase 10 — set when the AI couldn't answer and needs to hand off to a human.
+  
   needsFallback Boolean @default(false)
 
   @@index([conversationId, createdAt])

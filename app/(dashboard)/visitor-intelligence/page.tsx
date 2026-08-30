@@ -1,14 +1,18 @@
 import { VisitorPage } from "@/components/dashboard/DashboardScreens";
 import { verifySession } from "@/lib/dal";
 import { prisma } from "@/lib/prisma";
+import { getGeographicDistribution } from "@/lib/visitorIntelligence";
 
 export default async function Page() {
   const session = await verifySession();
 
-  const rows = await prisma.websiteVisitor.findMany({
-    where: { companyId: session.companyId },
-    orderBy: { lastVisit: "desc" },
-  });
+  const [rows, initialGeo] = await Promise.all([
+    prisma.websiteVisitor.findMany({
+      where: { companyId: session.companyId },
+      orderBy: { lastVisit: "desc" },
+    }),
+    getGeographicDistribution(session.companyId, "30d"),
+  ]);
 
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
@@ -31,6 +35,7 @@ export default async function Page() {
     <VisitorPage
       stats={{ visitorsToday, identifiedCompanies, countries, returnVisitors }}
       visitors={visitors}
+      initialGeo={initialGeo}
     />
   );
 }

@@ -1,7 +1,7 @@
--- CreateEnum
+
 CREATE TYPE "SearchJobStatus" AS ENUM ('PENDING', 'RUNNING', 'COMPLETED', 'FAILED');
 
--- CreateTable
+
 CREATE TABLE "SearchJob" (
     "id" TEXT NOT NULL,
     "companyId" TEXT NOT NULL,
@@ -21,7 +21,7 @@ CREATE TABLE "SearchJob" (
     CONSTRAINT "SearchJob_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+
 CREATE TABLE "SearchResult" (
     "id" TEXT NOT NULL,
     "searchJobId" TEXT NOT NULL,
@@ -37,14 +37,14 @@ CREATE TABLE "SearchResult" (
     CONSTRAINT "SearchResult_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
+
 CREATE UNIQUE INDEX "SearchResult_searchJobId_website_key" ON "SearchResult"("searchJobId", "website");
 
--- AddForeignKey
+
 ALTER TABLE "SearchJob" ADD CONSTRAINT "SearchJob_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Company"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
+
 ALTER TABLE "SearchJob" ADD CONSTRAINT "SearchJob_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
+
 ALTER TABLE "SearchResult" ADD CONSTRAINT "SearchResult_searchJobId_fkey" FOREIGN KEY ("searchJobId") REFERENCES "SearchJob"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

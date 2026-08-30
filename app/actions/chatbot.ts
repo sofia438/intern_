@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 
 import { prisma } from "@/lib/prisma";
-import { verifySession } from "@/lib/dal";
+import { verifySession, getUser } from "@/lib/dal";
 import type { FormState } from "@/lib/definitions";
+import { getChatbotDefaults } from "@/lib/chatbot/defaults";
 
 export async function updateChatbotKnowledge(_prevState: FormState, formData: FormData): Promise<FormState> {
   const session = await verifySession();
@@ -20,30 +21,13 @@ export async function updateChatbotKnowledge(_prevState: FormState, formData: Fo
   return { message: "Chatbot knowledge saved." };
 }
 
-export async function updateChatbotLanguageSettings(_prevState: FormState, formData: FormData): Promise<FormState> {
-  const session = await verifySession();
-  const languageMode = formData.get("languageMode") === "restricted" ? "restricted" : "automatic";
-  const supportedLanguages = formData.getAll("supportedLanguages").map(String);
-
-  if (languageMode === "restricted" && supportedLanguages.length === 0) {
-    return { message: "Select at least one language, or switch back to automatic." };
-  }
-
-  await prisma.chatbot.upsert({
-    where: { companyId: session.companyId },
-    create: { companyId: session.companyId, languageMode, supportedLanguages },
-    update: { languageMode, supportedLanguages },
-  });
-
-  revalidatePath("/settings");
-  return { message: "Chatbot language settings saved." };
-}
-
 export async function updateChatbotSettings(_prevState: FormState, formData: FormData): Promise<FormState> {
   const session = await verifySession();
+  const user = await getUser();
+  const defaults = getChatbotDefaults(user?.language ?? "en");
   const enabled = formData.get("enabled") === "on";
-  const assistantName = String(formData.get("assistantName") ?? "").trim() || "AI Assistant";
-  const greeting = String(formData.get("greeting") ?? "").trim() || "Hello! How can I help you today?";
+  const assistantName = String(formData.get("assistantName") ?? "").trim() || defaults.assistantName;
+  const greeting = String(formData.get("greeting") ?? "").trim() || defaults.greeting;
   const themeColor = String(formData.get("themeColor") ?? "").trim() || "#4f46e5";
   const quickActions = String(formData.get("quickActions") ?? "")
     .split("\n")

@@ -2,10 +2,15 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 
 import { PLANS } from "@/lib/billing/plans";
+import { getUser } from "@/lib/dal";
+import { getDictionaryForUser } from "@/lib/i18n/dictionaries";
 
-export default function PlanCards({ currentPlanId }: { currentPlanId?: string }) {
+export default async function PlanCards({ currentPlanId }: { currentPlanId?: string }) {
+  const user = await getUser();
+  const t = getDictionaryForUser(user?.language);
+
   return (
-    <div className="grid grid-cols-3 gap-8">
+    <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
       {PLANS.map((plan) => {
         const isCurrent = plan.id === currentPlanId;
         return (
@@ -15,14 +20,14 @@ export default function PlanCards({ currentPlanId }: { currentPlanId?: string })
           >
             {plan.mostPopular && (
               <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-[#e7f600] px-4 py-1 font-mono text-xs font-bold uppercase tracking-wide text-black">
-                Most Popular
+                {t.planCards.mostPopular}
               </span>
             )}
 
             <h2 className="text-center font-mono text-sm uppercase tracking-[0.12em] text-neutral-500 dark:text-neutral-400">{plan.name}</h2>
             <div className="mt-4 text-center">
               <span className="text-5xl font-black dark:text-white">${plan.price}</span>
-              <span className="text-neutral-500 dark:text-neutral-400"> / month</span>
+              <span className="text-neutral-500 dark:text-neutral-400"> {t.planCards.perMonth}</span>
             </div>
 
             <ul className="mt-8 space-y-3">
@@ -36,14 +41,14 @@ export default function PlanCards({ currentPlanId }: { currentPlanId?: string })
 
             {isCurrent ? (
               <span className="mt-8 block w-full bg-neutral-100 py-4 text-center text-lg font-black text-neutral-400 dark:bg-[#3a3a3a] dark:text-neutral-500">
-                Current Plan
+                {t.planCards.currentPlan}
               </span>
             ) : (
               <Link
                 href={`/billing/checkout?plan=${plan.id}`}
                 className="mt-8 block w-full bg-black py-4 text-center text-lg font-black text-white hover:bg-neutral-800"
               >
-                Choose {plan.name}
+                {t.planCards.choosePlan.replace("{plan}", plan.name)}
               </Link>
             )}
           </div>
