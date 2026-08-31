@@ -1,0 +1,33 @@
+# Local Postgres for GlobalExpo.
+#
+#   docker compose up -d      # start the database
+#   docker compose down       # stop it (data is kept in the named volume)
+#   docker compose down -v    # stop it AND wipe all data
+#
+# The connection string for .env.local / .env is:
+#   postgresql://globalexpo:globalexpo@localhost:5432/globalexpo?schema=public
+#
+# After the container is healthy, apply the schema with:
+#   npx prisma migrate deploy
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: globalexpo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: globalexpo
+      POSTGRES_PASSWORD: globalexpo
+      POSTGRES_DB: globalexpo
+    ports:
+      - "5432:5432"
+    volumes:
+      - globalexpo-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U globalexpo -d globalexpo"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  globalexpo-pgdata:
